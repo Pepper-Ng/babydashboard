@@ -1,0 +1,16 @@
+services:
+  baby-melk-dashboard:
+    build: .
+    container_name: baby-melk-dashboard
+    ports:
+      - "8080:8000"
+    environment:
+      - SECRET_KEY=change-this-to-a-long-random-string
+      - ADMIN_PASSWORD=change-this-password
+      - DB_PATH=/data/babylog.db
+    volumes:
+      - baby_melk_data:/data
+    restart: unless-stopped
+
+volumes:
+  baby_melk_data:

@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Baby melk-dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #2563eb;
+      --danger: #ef4444;
+      --shadow: 0 10px 30px rgba(0,0,0,.06);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f7f7fb 0%, #eef2ff 100%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    .title h1 { margin:0; font-size: 28px; }
+    .title p { margin: 4px 0 0; color: var(--muted); }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding: 8px 12px; border-radius: 999px; background: rgba(37,99,235,.08); color: var(--accent); font-size: 14px; }
+    .grid { display:grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
+    .card { background: var(--card); border: 1px solid rgba(229,231,235,.9); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+    .card h2 { margin:0 0 12px; font-size: 18px; }
+    .stats { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+    .stat .label { color: var(--muted); font-size: 13px; }
+    .stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+    .stat .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    form { display:grid; gap: 10px; }
+    .row { display:grid; grid-template-columns: 1.1fr .7fr .7fr; gap: 10px; }
+    label { font-size: 13px; color: var(--muted); display:block; margin:0 0 6px; }
+    input, select, textarea, button {
+      width: 100%; padding: 12px 14px; border-radius: 14px;
+      border: 1px solid var(--line); background: #fff; color: var(--text);
+      font: inherit;
+    }
+    textarea { min-height: 42px; resize: vertical; }
+    button { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #eef2ff; color: #1d4ed8; border: 1px solid #c7d2fe; }
+    button.danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .flash { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; font-size: 14px; }
+    .success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .toolbar { display:flex; flex-wrap:wrap; gap: 10px; align-items:end; margin-bottom: 12px; }
+    .toolbar > div { flex: 1 1 220px; }
+    .checkboxes { display:flex; flex-wrap:wrap; gap: 8px; margin: 10px 0 14px; }
+    .check {
+      display:inline-flex; align-items:center; gap: 8px; padding: 8px 10px;
+      border: 1px solid var(--line); border-radius: 999px; background: #fff; font-size: 14px;
+    }
+    .chartbox { position: relative; height: 320px; }
+    .chartbox.large { height: 380px; }
+    .list { display:grid; gap: 8px; max-height: 390px; overflow:auto; padding-right: 4px; }
+    .entry { display:flex; justify-content:space-between; gap: 12px; align-items:flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .entry strong { display:block; }
+    .entry .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .entry .actions { display:flex; gap:8px; }
+    .tiny { font-size: 12px; }
+    .footer-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .nav-actions { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    .grid-bottom { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:16px; }
+    @media (max-width: 960px) {
+      .grid, .grid-bottom, .stats, .row { grid-template-columns: 1fr; }
+      .chartbox, .chartbox.large { height: 300px; }
+      .topbar { align-items:flex-start; flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">
+        <h1>Baby melk-dashboard</h1>
+        <p>Inname registreren, analyseren en per dag vergelijken.</p>
+      </div>
+      <div class="nav-actions">
+        {% if logged_in %}
+          <span class="pill">Schrijfrechten actief</span>
+          <form method="post" action="{{ url_for('logout') }}" style="margin:0">
+            <button type="submit" class="secondary">Uitloggen</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login') }}" style="text-decoration:none"><button type="button" class="secondary">Inloggen</button></a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Totaal dagen</div>
+        <div class="value">{{ days|length }}</div>
+        <div class="sub">Alle ingevoerde logdagen</div>
+      </div>
+      <div class="stat">
+        <div class="label">Totaal metingen</div>
+        <div class="value">{{ entries|length }}</div>
+        <div class="sub">Voedingsmomenten</div>
+      </div>
+      <div class="stat">
+        <div class="label">Laatste dag</div>
+        <div class="value">{{ days[-1].label if days else '—' }}</div>
+        <div class="sub">Meest recente logdag</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Dagtotalen</h2>
+        <div class="chartbox large">
+          <canvas id="totalsChart"></canvas>
+        </div>
+        <div class="footer-note">Klik op een balk/label om de vergelijking per dag snel te lezen.</div>
+      </div>
+
+      <div class="card">
+        <h2>Invoer</h2>
+        {% if logged_in %}
+        <form method="post" action="{{ url_for('add_entry') }}">
+          <div class="row">
+            <div>
+              <label for="day_label">Daglabel</label>
+              <input id="day_label" name="day_label" list="day_labels" placeholder="Bijv. Dag 7 of 2026-03-26" required>
+              <datalist id="day_labels">
+                {% for d in days %}
+                  <option value="{{ d.label }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+            <div>
+              <label for="feed_time">Tijd</label>
+              <input id="feed_time" name="feed_time" type="time" required>
+            </div>
+            <div>
+              <label for="amount_ml">Hoeveelheid (ml)</label>
+              <input id="amount_ml" name="amount_ml" type="number" min="1" step="1" inputmode="numeric" required>
+            </div>
+          </div>
+          <div>
+            <label for="note">Notitie (optioneel)</label>
+            <textarea id="note" name="note" placeholder="Bijv. reflux, huilmoment, extra poging"></textarea>
+          </div>
+          <button type="submit">Toevoegen</button>
+        </form>
+        <div class="footer-note">Nieuwe daglabels worden automatisch aangemaakt zodra je ze gebruikt.</div>
+        {% else %}
+          <p class="muted">Invoeren kan na inloggen. Het dashboard is wel gewoon zichtbaar zonder login.</p>
+          <a href="{{ url_for('login') }}" style="text-decoration:none"><button type="button">Inloggen om te bewerken</button></a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid-bottom">
+      <div class="card">
+        <h2>Intake per dag over de tijd</h2>
+        <div class="toolbar">
+          <div>
+            <label for="focusDay">Focus op één dag</label>
+            <select id="focusDay">
+              <option value="all">Alle dagen</option>
+              {% for d in days %}
+                <option value="{{ d.id }}" {% if d.id == selected_day_id %}selected{% endif %}>{{ d.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Snelle toggles</label>
+            <div class="checkboxes" id="dayCheckboxes">
+              {% for d in days %}
+                <label class="check">
+                  <input type="checkbox" class="dayToggle" data-day-id="{{ d.id }}" checked>
+                  {{ d.label }}
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="chartbox">
+          <canvas id="dayChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Laatste ingevoerde momenten</h2>
+        <div class="list">
+          {% for e in entries|reverse %}
+            <div class="entry">
+              <div>
+                <strong>{{ e.day_label }} · {{ e.feed_time }} · {{ e.amount_ml }} ml</strong>
+                <div class="meta">
+                  {% if e.note %}{{ e.note }}{% else %}Geen notitie{% endif %}
+                </div>
+              </div>
+              <div class="actions">
+                {% if logged_in %}
+                  <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}" onsubmit="return confirm('Deze meting verwijderen?');" style="margin:0">
+                    <button type="submit" class="danger tiny">Verwijderen</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <p class="footer-note">
+      Gegevens staan in SQLite op disk; ideaal voor een klein lokaal dashboard op je Proxmox-host.
+    </p>
+  </div>
+
+  <script>
+    const dailyTotals = {{ daily_totals|tojson }};
+    const detailByDay = {{ detail_by_day|tojson }};
+
+    new Chart(document.getElementById('totalsChart'), {
+      type: 'bar',
+      data: {
+        labels: dailyTotals.map(d => d.label),
+        datasets: [{
+          label: 'Totaal ml',
+          data: dailyTotals.map(d => d.total),
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: context => context.parsed.y + ' ml' } }
+        },
+        scales: {
+          y: { beginAtZero: true, title: { display: true, text: 'ml' } },
+          x: { title: { display: true, text: 'Dag' } }
+        }
+      }
+    });
+
+    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6', '#ec4899'];
+    const datasets = detailByDay.map((d, idx) => ({
+      label: d.label,
+      data: d.points.map(p => ({x: p.minutes, y: p.amount})),
+      borderColor: colors[idx % colors.length],
+      backgroundColor: colors[idx % colors.length],
+      tension: 0.25,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      fill: false
+    }));
+
+    const chart = new Chart(document.getElementById('dayChart'), {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        parsing: false,
+        plugins: {
+          legend: {
+            display: true,
+            onClick: (e, item) => {
+              const index = item.datasetIndex;
+              chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
+              chart.update();
+              syncCheckboxesFromChart();
+            }
+          },
+          tooltip: {
+            callbacks: {
+              title: items => {
+                const x = items[0].parsed.x;
+                const hh = String(Math.floor(x / 60)).padStart(2, '0');
+                const mm = String(x % 60).padStart(2, '0');
+                return hh + ':' + mm;
+              },
+              label: context => `${context.dataset.label}: ${context.parsed.y} ml`
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: 0,
+            max: 24 * 60,
+            title: { display: true, text: 'Tijd van de dag' },
+            ticks: {
+              callback: function(value) {
+                const hh = String(Math.floor(value / 60)).padStart(2, '0');
+                const mm = String(value % 60).padStart(2, '0');
+                return hh + ':' + mm;
+              }
+            }
+          },
+          y: { beginAtZero: true, title: { display: true, text: 'ml per moment' } }
+        }
+      }
+    });
+
+    const focusDay = document.getElementById('focusDay');
+    const dayCheckboxes = [...document.querySelectorAll('.dayToggle')];
+
+    function showOnlyDay(dayId) {
+      datasets.forEach((_, idx) => {
+        const visible = dayId === 'all' ? true : String(detailByDay[idx].day_id) === String(dayId);
+        chart.setDatasetVisibility(idx, visible);
+      });
+      chart.update();
+      dayCheckboxes.forEach(cb => {
+        cb.checked = (dayId === 'all') ? true : String(cb.dataset.dayId) === String(dayId);
+      });
+    }
+
+    function syncCheckboxesFromChart() {
+      dayCheckboxes.forEach((cb, idx) => cb.checked = chart.isDatasetVisible(idx));
+      const visible = datasets.map((_, idx) => chart.isDatasetVisible(idx));
+      if (visible.every(v => v)) {
+        focusDay.value = 'all';
+        return;
+      }
+      const visibleIdx = visible.findIndex(v => v);
+      focusDay.value = visibleIdx >= 0 ? String(detailByDay[visibleIdx].day_id) : 'all';
+    }
+
+    focusDay.addEventListener('change', () => showOnlyDay(focusDay.value));
+    dayCheckboxes.forEach((cb, idx) => {
+      cb.addEventListener('change', () => {
+        chart.setDatasetVisibility(idx, cb.checked);
+        chart.update();
+        syncCheckboxesFromChart();
+      });
+    });
+
+    const selectedDayId = "{{ selected_day_id or '' }}";
+    if (selectedDayId && selectedDayId !== 'None') {
+      showOnlyDay(selectedDayId);
+      focusDay.value = String(selectedDayId);
+    } else {
+      showOnlyDay('all');
+      focusDay.value = 'all';
+    }
+
+    const dayInput = document.getElementById('day_label');
+    const timeInput = document.getElementById('feed_time');
+    if (dayInput && !dayInput.value && document.querySelector('#day_labels option')) {
+      dayInput.value = document.querySelector('#day_labels option').value;
+    }
+    if (timeInput && !timeInput.value) {
+      const now = new Date();
+      timeInput.value = now.toTimeString().slice(0,5);
+    }
+  </script>
+</body>
+</html>
