@@ -294,7 +294,12 @@ const dayDurationMinutes = 24 * 60;
 const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
 
-let selectedDates = new Set(detailByDay.map(d => d.date));
+function defaultSelectedDates(days) {
+  if (!days.length) return new Set();
+  return new Set([days[days.length - 1].date]);
+}
+
+let selectedDates = defaultSelectedDates(detailByDay);
 let intakeView = 'cumulative';
 let totalsType = 'bar';
 
@@ -431,11 +436,11 @@ function intakeDatasets() {
   return detailByDay.filter(day => selectedDates.has(day.date)).map((day, idx) => {
     let running = 0;
     const data = day.points.map(p => {
+      running += p.amount;
       if (intakeView === 'cumulative') {
-        running += p.amount;
-        return { x: p.chart_minutes, y: running, amount: p.amount, time: p.time };
+        return { x: p.chart_minutes, y: running, amount: p.amount, cumulative: running, time: p.time };
       }
-      return { x: p.chart_minutes, y: p.amount, amount: p.amount, time: p.time };
+      return { x: p.chart_minutes, y: p.amount, amount: p.amount, cumulative: running, time: p.time };
     });
 
     return {
@@ -520,16 +525,15 @@ const intakeChart = new Chart(document.getElementById('intakeChart'), {
     plugins: {
       tooltip: {
         callbacks: {
+          title: () => '',
           label: (ctx) => {
             const time = ctx.raw?.time || '';
             const amount = ctx.raw?.amount ?? 0;
-            if (intakeView === 'cumulative') {
-              return [
-                `${i18n.tooltip_cumulative}: ${ctx.raw?.y ?? 0} ml`,
-                `${time} : ${amount} ml`
-              ];
-            }
             return `${time} : ${amount} ml`;
+          },
+          afterLabel: (ctx) => {
+            const cumulative = ctx.raw?.cumulative ?? 0;
+            return `${i18n.tooltip_cumulative}: ${cumulative} ml`;
           }
         }
       }
@@ -619,7 +623,7 @@ function applyDashboardData(data) {
   recentWeightEntries = data.weight_entries;
   selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
   if (!selectedDates.size) {
-    selectedDates = new Set(detailByDay.map(d => d.date));
+    selectedDates = defaultSelectedDates(detailByDay);
   }
   totalsChart.data.labels = dailyTotals.map(d => d.label);
   totalsChart.data.datasets[0].data = dailyTotals.map(d => d.total);
