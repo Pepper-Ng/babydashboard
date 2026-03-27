@@ -224,16 +224,16 @@ def load_dashboard_data():
     intake_by_day = {}
     all_entries = []
     for row in rows:
-        intake_day = intake_day_for(row["entry_date"], row["feed_time"])
-        if intake_day not in by_day:
-            by_day[intake_day] = {
-                "date": intake_day,
-                "label": as_dd_mm(intake_day),
+        iso_date = row["entry_date"]
+        if iso_date not in by_day:
+            by_day[iso_date] = {
+                "date": iso_date,
+                "label": as_dd_mm(iso_date),
                 "points": [],
                 "total": 0,
             }
 
-        intake_day = intake_day_for(row["entry_date"], row["feed_time"])
+        intake_day = intake_day_for(iso_date, row["feed_time"])
         if intake_day not in intake_by_day:
             intake_by_day[intake_day] = {
                 "date": intake_day,
