@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Baby bottle favicon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e0ecff" />
+      <stop offset="100%" stop-color="#c7d2fe" />
+    </linearGradient>
+    <linearGradient id="bottle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f8fafc" />
+    </linearGradient>
+  </defs>
+
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)" />
+
+  <g transform="translate(18 8)">
+    <rect x="8" y="2" width="12" height="8" rx="3" fill="#60a5fa" />
+    <rect x="6" y="9" width="16" height="6" rx="3" fill="#93c5fd" />
+    <rect x="2" y="14" width="24" height="34" rx="8" fill="url(#bottle)" stroke="#2563eb" stroke-width="2" />
+
+    <rect x="6" y="21" width="16" height="18" rx="6" fill="#dbeafe" />
+    <line x1="8" y1="24" x2="20" y2="24" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="8" y1="28" x2="20" y2="28" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="8" y1="32" x2="20" y2="32" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" />
+    <line x1="8" y1="36" x2="20" y2="36" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" />
+  </g>
+</svg>
