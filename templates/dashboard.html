@@ -1,369 +1,351 @@
 <!doctype html>
-<html lang="nl">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Baby melk-dashboard</title>
+  <title>{{ i18n.app_title }}</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
   <style>
-    :root {
-      --bg: #f7f7fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --accent: #2563eb;
-      --danger: #ef4444;
-      --shadow: 0 10px 30px rgba(0,0,0,.06);
-      --radius: 18px;
-    }
+    :root { --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --shadow:0 10px 28px rgba(0,0,0,.06); --radius:16px; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #f7f7fb 0%, #eef2ff 100%);
-      color: var(--text);
-    }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
-    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
-    .title h1 { margin:0; font-size: 28px; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f7f8ff 0%, #eef2ff 100%); color: var(--text); }
+    .container { max-width: 1160px; margin: 0 auto; padding: 18px; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .title h1 { margin: 0; font-size: 1.6rem; }
     .title p { margin: 4px 0 0; color: var(--muted); }
-    .pill { display:inline-flex; align-items:center; gap:8px; padding: 8px 12px; border-radius: 999px; background: rgba(37,99,235,.08); color: var(--accent); font-size: 14px; }
-    .grid { display:grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
-    .card { background: var(--card); border: 1px solid rgba(229,231,235,.9); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
-    .card h2 { margin:0 0 12px; font-size: 18px; }
-    .stats { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
-    .stat { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
-    .stat .label { color: var(--muted); font-size: 13px; }
-    .stat .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
-    .stat .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
-    form { display:grid; gap: 10px; }
-    .row { display:grid; grid-template-columns: 1.1fr .7fr .7fr; gap: 10px; }
-    label { font-size: 13px; color: var(--muted); display:block; margin:0 0 6px; }
-    input, select, textarea, button {
-      width: 100%; padding: 12px 14px; border-radius: 14px;
-      border: 1px solid var(--line); background: #fff; color: var(--text);
-      font: inherit;
-    }
-    textarea { min-height: 42px; resize: vertical; }
-    button { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; border: 0; font-weight: 700; cursor: pointer; }
-    button.secondary { background: #eef2ff; color: #1d4ed8; border: 1px solid #c7d2fe; }
-    button.danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-    .muted { color: var(--muted); font-size: 14px; }
-    .flash { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; font-size: 14px; }
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 7px 12px; font-size: .85rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--radius); padding: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 1.1rem; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .stat .label { color: var(--muted); font-size: .82rem; }
+    .stat .value { font-size: 1.7rem; font-weight: 700; }
+    .flash { margin: 0 0 10px; border-radius: 12px; padding: 10px 12px; font-size: .9rem; }
     .success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
     .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    .toolbar { display:flex; flex-wrap:wrap; gap: 10px; align-items:end; margin-bottom: 12px; }
-    .toolbar > div { flex: 1 1 220px; }
-    .checkboxes { display:flex; flex-wrap:wrap; gap: 8px; margin: 10px 0 14px; }
-    .check {
-      display:inline-flex; align-items:center; gap: 8px; padding: 8px 10px;
-      border: 1px solid var(--line); border-radius: 999px; background: #fff; font-size: 14px;
-    }
-    .chartbox { position: relative; height: 320px; }
-    .chartbox.large { height: 380px; }
-    .list { display:grid; gap: 8px; max-height: 390px; overflow:auto; padding-right: 4px; }
-    .entry { display:flex; justify-content:space-between; gap: 12px; align-items:flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
-    .entry strong { display:block; }
-    .entry .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
-    .entry .actions { display:flex; gap:8px; }
-    .tiny { font-size: 12px; }
-    .footer-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
-    .nav-actions { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
-    .grid-bottom { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:16px; }
-    @media (max-width: 960px) {
-      .grid, .grid-bottom, .stats, .row { grid-template-columns: 1fr; }
-      .chartbox, .chartbox.large { height: 300px; }
-      .topbar { align-items:flex-start; flex-direction:column; }
+    button, input, textarea, select { font: inherit; }
+    button { border: 0; border-radius: 12px; padding: 10px 12px; cursor: pointer; font-weight: 600; }
+    .btn { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; }
+    .btn-muted { border: 1px solid #cbd5e1; background: #fff; color: #1e293b; }
+    .btn-danger { border: 1px solid #fecaca; background: #fee2e2; color: #b91c1c; }
+    form { display: grid; gap: 10px; }
+    .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .row2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    label { display: block; margin-bottom: 5px; font-size: .82rem; color: var(--muted); }
+    input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+    textarea { min-height: 56px; resize: vertical; }
+    .muted { color: var(--muted); font-size: .88rem; }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+    .toolbar .inline { display:flex; align-items:center; gap:6px; }
+    .checkboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .chart-wrap { position: relative; height: 320px; }
+    .entries { max-height: 410px; overflow: auto; display: grid; gap: 8px; }
+    .entry { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: space-between; gap: 8px; }
+    .entry strong { display: block; font-size: .93rem; }
+    .entry small { color: var(--muted); }
+    @media (max-width: 920px) {
+      .grid, .stats, .row3, .row2 { grid-template-columns: 1fr; }
+      .chart-wrap { height: 280px; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="title">
-        <h1>Baby melk-dashboard</h1>
-        <p>Inname registreren, analyseren en per dag vergelijken.</p>
-      </div>
-      <div class="nav-actions">
-        {% if logged_in %}
-          <span class="pill">Schrijfrechten actief</span>
-          <form method="post" action="{{ url_for('logout') }}" style="margin:0">
-            <button type="submit" class="secondary">Uitloggen</button>
-          </form>
-        {% else %}
-          <a href="{{ url_for('login') }}" style="text-decoration:none"><button type="button" class="secondary">Inloggen</button></a>
-        {% endif %}
-      </div>
+<div class="container">
+  <div class="top">
+    <div class="title">
+      <h1>{{ i18n.app_title }}</h1>
+      <p>{{ i18n.app_subtitle }}</p>
     </div>
-
-    {% for category, message in get_flashed_messages(with_categories=true) %}
-      <div class="flash {{ category }}">{{ message }}</div>
-    {% endfor %}
-
-    <div class="stats">
-      <div class="stat">
-        <div class="label">Totaal dagen</div>
-        <div class="value">{{ days|length }}</div>
-        <div class="sub">Alle ingevoerde logdagen</div>
-      </div>
-      <div class="stat">
-        <div class="label">Totaal metingen</div>
-        <div class="value">{{ entries|length }}</div>
-        <div class="sub">Voedingsmomenten</div>
-      </div>
-      <div class="stat">
-        <div class="label">Laatste dag</div>
-        <div class="value">{{ days[-1].label if days else '—' }}</div>
-        <div class="sub">Meest recente logdag</div>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <h2>Dagtotalen</h2>
-        <div class="chartbox large">
-          <canvas id="totalsChart"></canvas>
-        </div>
-        <div class="footer-note">Klik op een balk/label om de vergelijking per dag snel te lezen.</div>
-      </div>
-
-      <div class="card">
-        <h2>Invoer</h2>
-        {% if logged_in %}
-        <form method="post" action="{{ url_for('add_entry') }}">
-          <div class="row">
-            <div>
-              <label for="day_label">Daglabel</label>
-              <input id="day_label" name="day_label" list="day_labels" placeholder="Bijv. Dag 7 of 2026-03-26" required>
-              <datalist id="day_labels">
-                {% for d in days %}
-                  <option value="{{ d.label }}"></option>
-                {% endfor %}
-              </datalist>
-            </div>
-            <div>
-              <label for="feed_time">Tijd</label>
-              <input id="feed_time" name="feed_time" type="time" required>
-            </div>
-            <div>
-              <label for="amount_ml">Hoeveelheid (ml)</label>
-              <input id="amount_ml" name="amount_ml" type="number" min="1" step="1" inputmode="numeric" required>
-            </div>
-          </div>
-          <div>
-            <label for="note">Notitie (optioneel)</label>
-            <textarea id="note" name="note" placeholder="Bijv. reflux, huilmoment, extra poging"></textarea>
-          </div>
-          <button type="submit">Toevoegen</button>
+    <div class="actions">
+      <form method="get" action="{{ url_for('dashboard') }}" style="margin:0">
+        <label for="lang" style="margin:0">{{ i18n.language }}</label>
+        <select id="lang" name="lang" onchange="this.form.submit()">
+          <option value="nl" {% if lang == 'nl' %}selected{% endif %}>{{ i18n.lang_nl }}</option>
+          <option value="en" {% if lang == 'en' %}selected{% endif %}>{{ i18n.lang_en }}</option>
+        </select>
+      </form>
+      {% if logged_in %}
+        <span class="pill">{{ i18n.edit_mode }}</span>
+        <form method="post" action="{{ url_for('logout', lang=lang) }}" style="margin:0">
+          <button type="submit" class="btn-muted">{{ i18n.logout }}</button>
         </form>
-        <div class="footer-note">Nieuwe daglabels worden automatisch aangemaakt zodra je ze gebruikt.</div>
-        {% else %}
-          <p class="muted">Invoeren kan na inloggen. Het dashboard is wel gewoon zichtbaar zonder login.</p>
-          <a href="{{ url_for('login') }}" style="text-decoration:none"><button type="button">Inloggen om te bewerken</button></a>
-        {% endif %}
-      </div>
+      {% else %}
+        <a href="{{ url_for('login', lang=lang) }}" style="text-decoration:none"><button type="button" class="btn-muted">{{ i18n.login }}</button></a>
+      {% endif %}
     </div>
-
-    <div class="grid-bottom">
-      <div class="card">
-        <h2>Intake per dag over de tijd</h2>
-        <div class="toolbar">
-          <div>
-            <label for="focusDay">Focus op één dag</label>
-            <select id="focusDay">
-              <option value="all">Alle dagen</option>
-              {% for d in days %}
-                <option value="{{ d.id }}" {% if d.id == selected_day_id %}selected{% endif %}>{{ d.label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label>Snelle toggles</label>
-            <div class="checkboxes" id="dayCheckboxes">
-              {% for d in days %}
-                <label class="check">
-                  <input type="checkbox" class="dayToggle" data-day-id="{{ d.id }}" checked>
-                  {{ d.label }}
-                </label>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-        <div class="chartbox">
-          <canvas id="dayChart"></canvas>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Laatste ingevoerde momenten</h2>
-        <div class="list">
-          {% for e in entries|reverse %}
-            <div class="entry">
-              <div>
-                <strong>{{ e.day_label }} · {{ e.feed_time }} · {{ e.amount_ml }} ml</strong>
-                <div class="meta">
-                  {% if e.note %}{{ e.note }}{% else %}Geen notitie{% endif %}
-                </div>
-              </div>
-              <div class="actions">
-                {% if logged_in %}
-                  <form method="post" action="{{ url_for('delete_entry', entry_id=e.id) }}" onsubmit="return confirm('Deze meting verwijderen?');" style="margin:0">
-                    <button type="submit" class="danger tiny">Verwijderen</button>
-                  </form>
-                {% endif %}
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <p class="footer-note">
-      Gegevens staan in SQLite op disk; ideaal voor een klein lokaal dashboard op je Proxmox-host.
-    </p>
   </div>
 
-  <script>
-    const dailyTotals = {{ daily_totals|tojson }};
-    const detailByDay = {{ detail_by_day|tojson }};
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="flash {{ category }}">{{ message }}</div>
+  {% endfor %}
 
-    new Chart(document.getElementById('totalsChart'), {
-      type: 'bar',
-      data: {
-        labels: dailyTotals.map(d => d.label),
-        datasets: [{
-          label: 'Totaal ml',
-          data: dailyTotals.map(d => d.total),
-          borderWidth: 1,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: context => context.parsed.y + ' ml' } }
-        },
-        scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'ml' } },
-          x: { title: { display: true, text: 'Dag' } }
-        }
+  <div class="stats">
+    <div class="stat"><div class="label">{{ i18n.days_tracked }}</div><div class="value">{{ days|length }}</div></div>
+    <div class="stat"><div class="label">{{ i18n.feedings_logged }}</div><div class="value">{{ entries|length }}</div></div>
+    <div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value">{{ days[-1].label if days else '—' }}</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>{{ i18n.daily_totals_title }}</h2>
+      <div class="toolbar">
+        <div class="inline">
+          <label for="totalsType" style="margin:0">{{ i18n.chart_style }}</label>
+          <select id="totalsType">
+            <option value="bar">{{ i18n.bar }}</option>
+            <option value="line">{{ i18n.line }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>{{ i18n.intake_time_title }}</h2>
+      <div class="toolbar">
+        <div class="inline">
+          <label for="intakeView" style="margin:0">{{ i18n.intake_mode }}</label>
+          <select id="intakeView">
+            <option value="cumulative">{{ i18n.intake_cumulative }}</option>
+            <option value="individual">{{ i18n.intake_individual }}</option>
+          </select>
+        </div>
+      </div>
+      <label>{{ i18n.day_filters }}</label>
+      <div id="dayToggles" class="checkboxes"></div>
+      <div class="chart-wrap"><canvas id="intakeChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px;">
+    <div class="card">
+      <h2>{{ i18n.weight_trend_title }}</h2>
+      <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      {% if logged_in %}
+      <h2>{{ i18n.add_intake_title }}</h2>
+      <form method="post" action="{{ url_for('add_entry', lang=lang) }}">
+        <div class="row3">
+          <div>
+            <label for="entry_date">{{ i18n.date_ddmm }}</label>
+            <input id="entry_date" name="entry_date" pattern="\d{2}-\d{2}" value="{{ now.strftime('%d-%m') }}" required>
+          </div>
+          <div>
+            <label for="feed_time">{{ i18n.time_hhmm }}</label>
+            <input id="feed_time" name="feed_time" type="time" value="{{ now.strftime('%H:%M') }}" required>
+          </div>
+          <div>
+            <label for="amount_ml">{{ i18n.intake_ml }}</label>
+            <input id="amount_ml" name="amount_ml" type="number" min="1" step="1" required>
+          </div>
+        </div>
+        <div>
+          <label for="note">{{ i18n.remark_optional }}</label>
+          <textarea id="note" name="note"></textarea>
+        </div>
+        <button class="btn" type="submit">{{ i18n.save_intake }}</button>
+      </form>
+
+      <h2 style="margin-top:18px">{{ i18n.add_weight_title }}</h2>
+      <form method="post" action="{{ url_for('add_weight', lang=lang) }}">
+        <div class="row2">
+          <div>
+            <label for="weight_date">{{ i18n.date_ddmm }}</label>
+            <input id="weight_date" name="weight_date" pattern="\d{2}-\d{2}" value="{{ now.strftime('%d-%m') }}" required>
+          </div>
+          <div>
+            <label for="weight_grams">{{ i18n.weight_grams }}</label>
+            <input id="weight_grams" name="weight_grams" type="number" min="1" step="1" required>
+          </div>
+        </div>
+        <div>
+          <label for="weight_note">{{ i18n.remark_optional }}</label>
+          <textarea id="weight_note" name="weight_note"></textarea>
+        </div>
+        <button class="btn" type="submit">{{ i18n.save_weight }}</button>
+      </form>
+      {% else %}
+        <p class="muted">{{ i18n.readonly_message }}</p>
+        <a href="{{ url_for('login', lang=lang) }}" style="text-decoration:none"><button class="btn" type="button">{{ i18n.login_to_edit }}</button></a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>{{ i18n.recent_entries }}</h2>
+    <div class="entries">
+      {% for e in entries %}
+      <div class="entry">
+        <div>
+          <strong>{{ e.day_label }} · {{ e.time }} · {{ e.amount }} ml</strong>
+          <small>{{ e.note if e.note else i18n.no_remark }}</small>
+        </div>
+        {% if logged_in %}
+        <form method="post" action="{{ url_for('delete_entry', entry_id=e.id, lang=lang) }}" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
+          <button class="btn-danger" type="submit">{{ i18n.delete }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+const i18n = {{ i18n|tojson }};
+const dailyTotals = {{ daily_totals|tojson }};
+const detailByDay = {{ detail_by_day|tojson }};
+const weightPoints = {{ weight_points|tojson }};
+const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
+
+let selectedDates = new Set(detailByDay.map(d => d.date));
+let intakeView = 'cumulative';
+let totalsType = 'bar';
+
+const dayToggles = document.getElementById('dayToggles');
+const intakeViewSelect = document.getElementById('intakeView');
+const totalsTypeSelect = document.getElementById('totalsType');
+
+function buildDayToggles() {
+  dayToggles.innerHTML = '';
+  detailByDay.forEach((day, idx) => {
+    const label = document.createElement('label');
+    label.className = 'day-chip';
+    label.innerHTML = `<span class="dot" style="background:${colors[idx % colors.length]}"></span>
+      <input type="checkbox" data-date="${day.date}" ${selectedDates.has(day.date) ? 'checked' : ''}> ${day.label}`;
+    label.querySelector('input').addEventListener('change', (ev) => {
+      if (ev.target.checked) selectedDates.add(day.date); else selectedDates.delete(day.date);
+      renderIntakeChart();
+    });
+    dayToggles.appendChild(label);
+  });
+}
+
+function intakeDatasets() {
+  return detailByDay.filter(day => selectedDates.has(day.date)).map((day, idx) => {
+    let running = 0;
+    const data = day.points.map(p => {
+      if (intakeView === 'cumulative') {
+        running += p.amount;
+        return { x: p.minutes, y: running };
       }
+      return { x: p.minutes, y: p.amount };
     });
 
-    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6', '#ec4899'];
-    const datasets = detailByDay.map((d, idx) => ({
-      label: d.label,
-      data: d.points.map(p => ({x: p.minutes, y: p.amount})),
+    return {
+      label: i18n.overlay_label.replace('{label}', day.label).replace('{total}', day.total),
+      data,
       borderColor: colors[idx % colors.length],
       backgroundColor: colors[idx % colors.length],
       tension: 0.25,
+      borderWidth: 2,
       pointRadius: 4,
-      pointHoverRadius: 6,
-      fill: false
-    }));
+      fill: false,
+      spanGaps: true
+    };
+  });
+}
 
-    const chart = new Chart(document.getElementById('dayChart'), {
-      type: 'line',
-      data: { datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        parsing: false,
-        plugins: {
-          legend: {
-            display: true,
-            onClick: (e, item) => {
-              const index = item.datasetIndex;
-              chart.setDatasetVisibility(index, !chart.isDatasetVisible(index));
-              chart.update();
-              syncCheckboxesFromChart();
-            }
-          },
-          tooltip: {
-            callbacks: {
-              title: items => {
-                const x = items[0].parsed.x;
-                const hh = String(Math.floor(x / 60)).padStart(2, '0');
-                const mm = String(x % 60).padStart(2, '0');
-                return hh + ':' + mm;
-              },
-              label: context => `${context.dataset.label}: ${context.parsed.y} ml`
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: 'linear',
-            min: 0,
-            max: 24 * 60,
-            title: { display: true, text: 'Tijd van de dag' },
-            ticks: {
-              callback: function(value) {
-                const hh = String(Math.floor(value / 60)).padStart(2, '0');
-                const mm = String(value % 60).padStart(2, '0');
-                return hh + ':' + mm;
-              }
-            }
-          },
-          y: { beginAtZero: true, title: { display: true, text: 'ml per moment' } }
+const totalsChart = new Chart(document.getElementById('totalsChart'), {
+  type: 'bar',
+  data: {
+    labels: dailyTotals.map(d => d.label),
+    datasets: [{
+      label: i18n.totals_dataset,
+      data: dailyTotals.map(d => d.total),
+      borderColor: '#2563eb',
+      backgroundColor: 'rgba(37,99,235,.55)',
+      borderWidth: 2,
+      tension: 0.25,
+      pointRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { title: { display: true, text: i18n.totals_x } },
+      y: { beginAtZero: true, title: { display: true, text: i18n.totals_y } }
+    }
+  }
+});
+
+const intakeChart = new Chart(document.getElementById('intakeChart'), {
+  type: 'line',
+  data: { datasets: intakeDatasets() },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {
+        type: 'linear',
+        min: 0,
+        max: 1440,
+        title: { display: true, text: i18n.single_x },
+        ticks: {
+          stepSize: 180,
+          callback: value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
         }
-      }
-    });
-
-    const focusDay = document.getElementById('focusDay');
-    const dayCheckboxes = [...document.querySelectorAll('.dayToggle')];
-
-    function showOnlyDay(dayId) {
-      datasets.forEach((_, idx) => {
-        const visible = dayId === 'all' ? true : String(detailByDay[idx].day_id) === String(dayId);
-        chart.setDatasetVisibility(idx, visible);
-      });
-      chart.update();
-      dayCheckboxes.forEach(cb => {
-        cb.checked = (dayId === 'all') ? true : String(cb.dataset.dayId) === String(dayId);
-      });
+      },
+      y: { beginAtZero: true, title: { display: true, text: i18n.single_y_cumulative } }
     }
+  }
+});
 
-    function syncCheckboxesFromChart() {
-      dayCheckboxes.forEach((cb, idx) => cb.checked = chart.isDatasetVisible(idx));
-      const visible = datasets.map((_, idx) => chart.isDatasetVisible(idx));
-      if (visible.every(v => v)) {
-        focusDay.value = 'all';
-        return;
-      }
-      const visibleIdx = visible.findIndex(v => v);
-      focusDay.value = visibleIdx >= 0 ? String(detailByDay[visibleIdx].day_id) : 'all';
+const weightChart = new Chart(document.getElementById('weightChart'), {
+  type: 'line',
+  data: {
+    labels: weightPoints.map(p => p.label),
+    datasets: [{
+      label: i18n.weight_dataset,
+      data: weightPoints.map(p => p.weight),
+      borderColor: '#7c3aed',
+      backgroundColor: '#7c3aed',
+      tension: 0.25,
+      borderWidth: 2,
+      pointRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: { title: { display: true, text: i18n.weight_x } },
+      y: { title: { display: true, text: i18n.weight_y } }
     }
+  }
+});
 
-    focusDay.addEventListener('change', () => showOnlyDay(focusDay.value));
-    dayCheckboxes.forEach((cb, idx) => {
-      cb.addEventListener('change', () => {
-        chart.setDatasetVisibility(idx, cb.checked);
-        chart.update();
-        syncCheckboxesFromChart();
-      });
-    });
+function renderIntakeChart() {
+  intakeChart.data.datasets = intakeDatasets();
+  intakeChart.options.scales.y.title.text = intakeView === 'cumulative' ? i18n.single_y_cumulative : i18n.single_y_individual;
+  intakeChart.update();
+}
 
-    const selectedDayId = "{{ selected_day_id or '' }}";
-    if (selectedDayId && selectedDayId !== 'None') {
-      showOnlyDay(selectedDayId);
-      focusDay.value = String(selectedDayId);
-    } else {
-      showOnlyDay('all');
-      focusDay.value = 'all';
-    }
+function renderTotalsChart() {
+  totalsChart.config.type = totalsType;
+  totalsChart.update();
+}
 
-    const dayInput = document.getElementById('day_label');
-    const timeInput = document.getElementById('feed_time');
-    if (dayInput && !dayInput.value && document.querySelector('#day_labels option')) {
-      dayInput.value = document.querySelector('#day_labels option').value;
-    }
-    if (timeInput && !timeInput.value) {
-      const now = new Date();
-      timeInput.value = now.toTimeString().slice(0,5);
-    }
-  </script>
+intakeViewSelect.addEventListener('change', (ev) => {
+  intakeView = ev.target.value;
+  renderIntakeChart();
+});
+
+totalsTypeSelect.addEventListener('change', (ev) => {
+  totalsType = ev.target.value;
+  renderTotalsChart();
+});
+
+buildDayToggles();
+renderIntakeChart();
+renderTotalsChart();
+</script>
 </body>
 </html>

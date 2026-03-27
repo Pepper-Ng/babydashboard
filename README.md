@@ -1,43 +1,62 @@
-# Baby melk-dashboard
+# Baby Intake Dashboard
 
-Een kleine Flask-app met:
+A lightweight Flask + SQLite dashboard to log baby feeding intake, compare trends, and track weight.
 
-- SQLite-opslag op disk
-- login voor invoer/verwijderen
-- dashboard met dagtotalen
-- grafiek per dag, met aan/uit zetten van individuele dagen
-- mobielvriendelijke invoer
+## Features
 
-## Snel draaien
+- Mobile-friendly dashboard UI
+- Language switcher (Dutch default, English optional)
+- Read-only view for everyone
+- Password login for data entry and delete actions
+- Intake input form with defaults:
+  - Date in `DD-MM` (pre-filled with current date)
+  - Time in `HH:MM` (pre-filled with current time)
+  - Intake amount in ml
+  - Optional remark
+- Weight input form:
+  - Date in `DD-MM`
+  - Weight in grams
+  - Optional remark
+- Charts:
+  - **Daily totals** with chart type toggle (**bar** default / line)
+  - **Intake over time** with day overlay compare and view toggle (**cumulative** default / individual)
+  - **Weight trend** as line chart across days
+- SQLite persistence (stored on disk)
+- Docker / Portainer friendly deployment
+
+## Quick start (Docker)
 
 ```bash
 docker compose up -d --build
 ```
 
-Open daarna:
+Open:
 
 ```text
-http://<jouw-host>:8080
+http://<your-host>:8080
 ```
 
-## Inlog
+## Configuration
 
-Zet in `docker-compose.yml` of via Portainer:
+Set environment variables in `docker-compose.yml` or via Portainer stack config:
 
-- `SECRET_KEY` = lange random string
-- `ADMIN_PASSWORD` = eigen wachtwoord
+- `SECRET_KEY`: long random secret
+- `ADMIN_PASSWORD`: your dashboard password
+- `DB_PATH` (optional): default `/data/babylog.db`
+- `TRANSLATIONS_FILE` (optional): default `translations.json`
 
-## Opslag
+## Data storage
 
-De database staat in de volume-mount `/data/babylog.db`.
+SQLite database file is persisted at `/data/babylog.db`.
 
-## Handig voor Proxmox / Portainer
+## Portainer deployment flow
 
-Je kunt deze map als stack in Portainer deployen. Alleen de volume en env-vars hoeven daarna nog aangepast te worden.
+1. Push this repository to GitHub.
+2. In Portainer: **Stacks → Add stack → Repository**.
+3. Select repository and branch.
+4. Configure env vars and volume mapping.
+5. Deploy stack.
 
-## Past bij jouw wens
+## API
 
-- unlogged: iedereen ziet het dashboard
-- logged in: invoeren en verwijderen
-- dagoverzicht + overlay per dag
-- werkt goed op mobiel
+- `GET /api/data` returns intake and weight chart data in JSON.
