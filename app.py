@@ -164,9 +164,42 @@ def parse_user_date(user_date):
         return None
 
 
+def parse_weight_date(user_date):
+    try:
+        return datetime.strptime(user_date, "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        pass
+    try:
+        return datetime.strptime(user_date, "%d-%m-%Y").date().isoformat()
+    except ValueError:
+        pass
+    return parse_user_date(user_date)
+
+
 def as_dd_mm(iso_date):
     parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
     return parsed.strftime("%d-%m")
+
+
+def as_dd_mm_yyyy(iso_date):
+    parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+    return parsed.strftime("%d-%m-%Y")
+
+
+def date_to_ordinal(iso_date):
+    parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+    return parsed.toordinal()
+
+
+def wants_json():
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def success_response(message_key, lang):
+    if wants_json():
+        return jsonify({"success": True, "message": t(message_key, lang), "data": load_dashboard_data()})
+    flash(t(message_key, lang), "success")
+    return redirect(url_for("dashboard", lang=lang))
 
 
 def load_dashboard_data():
@@ -225,6 +258,8 @@ def load_dashboard_data():
             "id": row["id"],
             "date": row["measure_date"],
             "label": as_dd_mm(row["measure_date"]),
+            "full_label": as_dd_mm_yyyy(row["measure_date"]),
+            "day_index": date_to_ordinal(row["measure_date"]),
             "weight": int(row["weight_grams"]),
             "note": row["note"] or "",
         }
@@ -237,7 +272,7 @@ def load_dashboard_data():
                 {
                     "id": point["id"],
                     "date": point["date"],
-                    "day_label": point["label"],
+                    "day_label": point["full_label"],
                     "weight": point["weight"],
                     "note": point["note"],
                 }
@@ -326,8 +361,7 @@ def add_entry():
         (iso_date, feed_time, amount_ml, note),
     )
     db.commit()
-    flash(t("intake_added", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("intake_added", lang)
 
 
 @app.route("/add-weight", methods=["POST"])
@@ -338,7 +372,7 @@ def add_weight():
     weight_grams = request.form.get("weight_grams", type=int)
     note = (request.form.get("weight_note") or "").strip()
 
-    iso_date = parse_user_date(date_dd_mm)
+    iso_date = parse_weight_date(date_dd_mm)
     if not iso_date:
         flash(t("date_format_error", lang), "error")
         return redirect(url_for("dashboard", lang=lang))
@@ -353,8 +387,7 @@ def add_weight():
         (iso_date, weight_grams, note),
     )
     db.commit()
-    flash(t("weight_added", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("weight_added", lang)
 
 
 @app.route("/delete/<int:entry_id>", methods=["POST"])
@@ -364,8 +397,7 @@ def delete_entry(entry_id):
     db = get_db()
     db.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
     db.commit()
-    flash(t("entry_deleted", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("entry_deleted", lang)
 
 
 @app.route("/update/<int:entry_id>", methods=["POST"])
@@ -398,8 +430,7 @@ def update_entry(entry_id):
         (iso_date, feed_time, amount_ml, note, entry_id),
     )
     db.commit()
-    flash(t("entry_updated", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("entry_updated", lang)
 
 
 @app.route("/update-weight/<int:weight_id>", methods=["POST"])
@@ -410,7 +441,7 @@ def update_weight(weight_id):
     weight_grams = request.form.get("weight_grams", type=int)
     note = (request.form.get("weight_note") or "").strip()
 
-    iso_date = parse_user_date(date_dd_mm)
+    iso_date = parse_weight_date(date_dd_mm)
     if not iso_date:
         flash(t("date_format_error", lang), "error")
         return redirect(url_for("dashboard", lang=lang))
@@ -425,8 +456,7 @@ def update_weight(weight_id):
         (iso_date, weight_grams, note, weight_id),
     )
     db.commit()
-    flash(t("weight_updated", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("weight_updated", lang)
 
 
 @app.route("/delete-weight/<int:weight_id>", methods=["POST"])
@@ -436,8 +466,7 @@ def delete_weight(weight_id):
     db = get_db()
     db.execute("DELETE FROM weight_entries WHERE id = ?", (weight_id,))
     db.commit()
-    flash(t("weight_deleted", lang), "success")
-    return redirect(url_for("dashboard", lang=lang))
+    return success_response("weight_deleted", lang)
 
 
 @app.route("/api/data")
