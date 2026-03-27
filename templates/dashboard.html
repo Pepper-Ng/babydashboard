@@ -110,6 +110,10 @@
             <option value="line">{{ i18n.line }}</option>
           </select>
         </div>
+        <label class="inline" style="margin:0">
+          <input id="dayBoundaryMode" type="checkbox" checked>
+          <span>{{ i18n.use_shifted_day }}</span>
+        </label>
       </div>
       <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
     </div>
@@ -127,7 +131,7 @@
       </div>
       <label>{{ i18n.day_filters }}</label>
       <div id="dayToggles" class="checkboxes"></div>
-      <p class="muted">{{ i18n.day_boundary_hint.replace('{time}', day_start_time) }}</p>
+      <p class="muted" id="dayBoundaryHint">{{ i18n.day_boundary_hint.replace('{time}', day_start_time) }}</p>
       <div class="chart-wrap"><canvas id="intakeChart"></canvas></div>
     </div>
   </div>
@@ -141,7 +145,7 @@
     <div class="card">
       {% if logged_in %}
       <h2>{{ i18n.add_intake_title }}</h2>
-      <form method="post" action="{{ url_for('add_entry', lang=lang) }}">
+      <form method="post" action="{{ url_for('add_entry', lang=lang) }}" class="js-async-form">
         <div class="row3">
           <div>
             <label for="entry_date">{{ i18n.date_ddmm }}</label>
@@ -293,12 +297,96 @@ const dayStartMinutes = Number(dayStartTime.split(':')[0]) * 60 + Number(dayStar
 const dayDurationMinutes = 24 * 60;
 const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
+const dateColorMap = {};
 
 function defaultSelectedDates(days) {
   if (!days.length) return new Set();
   return new Set([days[days.length - 1].date]);
 }
 
+function parseMinutes(value) {
+  const [hh, mm] = String(value || '00:00').split(':');
+  return Number(hh) * 60 + Number(mm);
+}
+
+function shiftedMinutes(minutes) {
+  if (minutes >= dayStartMinutes) return minutes - dayStartMinutes;
+  return minutes + (24 * 60 - dayStartMinutes);
+}
+
+function isoToLabel(isoDate) {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}-${month}`;
+}
+
+function shiftIsoDateByDays(isoDate, amount) {
+  const dt = new Date(`${isoDate}T00:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + amount);
+  return dt.toISOString().slice(0, 10);
+}
+
+function getColorForDate(isoDate) {
+  if (!dateColorMap[isoDate]) {
+    const index = Object.keys(dateColorMap).length % colors.length;
+    dateColorMap[isoDate] = colors[index];
+  }
+  return dateColorMap[isoDate];
+}
+
+function sortEntriesAscending(entries) {
+  return [...entries].sort((a, b) => (
+    a.date.localeCompare(b.date)
+    || a.time.localeCompare(b.time)
+    || Number(a.id) - Number(b.id)
+  ));
+}
+
+function normalizeDashboardData(useShiftedDayBoundary) {
+  const grouped = {};
+  const sortedEntries = sortEntriesAscending(recentEntries);
+  sortedEntries.forEach((entry) => {
+    const minutes = parseMinutes(entry.time);
+    const belongsToDate = useShiftedDayBoundary && minutes < dayStartMinutes
+      ? shiftIsoDateByDays(entry.date, -1)
+      : entry.date;
+    if (!grouped[belongsToDate]) {
+      grouped[belongsToDate] = {
+        date: belongsToDate,
+        label: isoToLabel(belongsToDate),
+        points: [],
+        total: 0
+      };
+    }
+    const point = {
+      id: entry.id,
+      date: entry.date,
+      intake_day: belongsToDate,
+      day_label: entry.day_label,
+      time: entry.time,
+      amount: Number(entry.amount),
+      note: entry.note || '',
+      minutes,
+      chart_minutes: useShiftedDayBoundary ? shiftedMinutes(minutes) : minutes
+    };
+    grouped[belongsToDate].points.push(point);
+    grouped[belongsToDate].total += point.amount;
+  });
+
+  const ordered = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+  ordered.forEach((day) => {
+    day.points.sort((a, b) => a.chart_minutes - b.chart_minutes || Number(a.id) - Number(b.id));
+  });
+  return {
+    days: ordered.map((d) => ({ date: d.date, label: d.label })),
+    detailByDay: ordered,
+    dailyTotals: ordered.map((d) => ({ date: d.date, label: d.label, total: d.total }))
+  };
+}
+
+let useShiftedDayBoundary = true;
+const initialNormalized = normalizeDashboardData(useShiftedDayBoundary);
+dailyTotals = initialNormalized.dailyTotals;
+detailByDay = initialNormalized.detailByDay;
 let selectedDates = defaultSelectedDates(detailByDay);
 let intakeView = 'cumulative';
 let totalsType = 'bar';
@@ -306,6 +394,8 @@ let totalsType = 'bar';
 const dayToggles = document.getElementById('dayToggles');
 const intakeViewSelect = document.getElementById('intakeView');
 const totalsTypeSelect = document.getElementById('totalsType');
+const dayBoundaryModeInput = document.getElementById('dayBoundaryMode');
+const dayBoundaryHint = document.getElementById('dayBoundaryHint');
 const entriesList = document.getElementById('entriesList');
 const weightEntriesList = document.getElementById('weightEntriesList');
 const updateEntryBaseUrl = "{{ url_for('update_entry', entry_id=0, lang=lang) }}";
@@ -328,11 +418,12 @@ function escapeHtml(value) {
 
 function buildDayToggles() {
   dayToggles.innerHTML = '';
-  detailByDay.forEach((day, idx) => {
+  detailByDay.forEach((day) => {
+    const color = getColorForDate(day.date);
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = `day-chip${selectedDates.has(day.date) ? ' selected' : ''}`;
-    chip.innerHTML = `<span class="dot" style="background:${colors[idx % colors.length]}"></span> ${day.label}`;
+    chip.innerHTML = `<span class="dot" style="background:${color}"></span> ${day.label}`;
     chip.addEventListener('click', () => {
       if (selectedDates.has(day.date)) selectedDates.delete(day.date); else selectedDates.add(day.date);
       chip.classList.toggle('selected', selectedDates.has(day.date));
@@ -433,7 +524,7 @@ function renderWeightEntriesList() {
 }
 
 function intakeDatasets() {
-  return detailByDay.filter(day => selectedDates.has(day.date)).map((day, idx) => {
+  return detailByDay.filter(day => selectedDates.has(day.date)).map((day) => {
     let running = 0;
     const data = day.points.map(p => {
       running += p.amount;
@@ -446,8 +537,8 @@ function intakeDatasets() {
     return {
       label: i18n.overlay_label.replace('{label}', day.label).replace('{total}', day.total),
       data,
-      borderColor: colors[idx % colors.length],
-      backgroundColor: colors[idx % colors.length],
+      borderColor: getColorForDate(day.date),
+      backgroundColor: getColorForDate(day.date),
       tension: 0.25,
       borderWidth: 2,
       pointRadius: 4,
@@ -459,7 +550,9 @@ function intakeDatasets() {
 
 function chartMinuteToClockLabel(value) {
   const normalized = ((Math.round(value) % dayDurationMinutes) + dayDurationMinutes) % dayDurationMinutes;
-  const absolute = (normalized + dayStartMinutes) % dayDurationMinutes;
+  const absolute = useShiftedDayBoundary
+    ? (normalized + dayStartMinutes) % dayDurationMinutes
+    : normalized;
   const hours = String(Math.floor(absolute / 60)).padStart(2, '0');
   const mins = String(absolute % 60).padStart(2, '0');
   return `${hours}:${mins}`;
@@ -615,12 +708,19 @@ function updateStats(days, entries) {
   if (statLatest) statLatest.textContent = days.length ? days[days.length - 1].label : '—';
 }
 
+function updateDayBoundaryHint() {
+  if (!dayBoundaryHint) return;
+  const key = useShiftedDayBoundary ? 'day_boundary_hint' : 'day_boundary_hint_calendar';
+  dayBoundaryHint.textContent = i18n[key].replace('{time}', dayStartTime);
+}
+
 function applyDashboardData(data) {
-  dailyTotals = data.daily_totals;
-  detailByDay = data.detail_by_day;
   weightPoints = data.weight_points;
   recentEntries = data.entries;
   recentWeightEntries = data.weight_entries;
+  const normalized = normalizeDashboardData(useShiftedDayBoundary);
+  dailyTotals = normalized.dailyTotals;
+  detailByDay = normalized.detailByDay;
   selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
   if (!selectedDates.size) {
     selectedDates = defaultSelectedDates(detailByDay);
@@ -633,22 +733,31 @@ function applyDashboardData(data) {
   renderWeightChart();
   renderEntriesList();
   renderWeightEntriesList();
-  updateStats(data.days, data.entries);
+  updateStats(normalized.days, data.entries);
   bindAsyncForms();
 }
 
 async function handleAsyncSubmit(event) {
   event.preventDefault();
   const form = event.target;
-  const response = await fetch(form.action, {
-    method: 'POST',
-    body: new FormData(form),
-    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-  });
-  if (!response.ok) return;
-  const payload = await response.json();
-  if (!payload.success || !payload.data) return;
-  applyDashboardData(payload.data);
+  try {
+    const response = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!response.ok) return;
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      window.location.reload();
+      return;
+    }
+    const payload = await response.json();
+    if (!payload.success || !payload.data) return;
+    applyDashboardData(payload.data);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 function bindAsyncForms() {
@@ -668,7 +777,28 @@ totalsTypeSelect.addEventListener('change', (ev) => {
   renderTotalsChart();
 });
 
+if (dayBoundaryModeInput) {
+  dayBoundaryModeInput.addEventListener('change', (ev) => {
+    useShiftedDayBoundary = ev.target.checked;
+    const normalized = normalizeDashboardData(useShiftedDayBoundary);
+    dailyTotals = normalized.dailyTotals;
+    detailByDay = normalized.detailByDay;
+    selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
+    if (!selectedDates.size) {
+      selectedDates = defaultSelectedDates(detailByDay);
+    }
+    totalsChart.data.labels = dailyTotals.map(d => d.label);
+    totalsChart.data.datasets[0].data = dailyTotals.map(d => d.total);
+    updateStats(normalized.days, recentEntries);
+    updateDayBoundaryHint();
+    buildDayToggles();
+    renderTotalsChart();
+    renderIntakeChart();
+  });
+}
+
 buildDayToggles();
+updateDayBoundaryHint();
 renderIntakeChart();
 renderTotalsChart();
 renderWeightChart();
