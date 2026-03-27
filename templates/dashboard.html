@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ i18n.app_title }}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
   <style>
     :root { --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --shadow:0 10px 28px rgba(0,0,0,.06); --radius:16px; }
@@ -14,6 +15,8 @@
     .title h1 { margin: 0; font-size: 1.6rem; }
     .title p { margin: 4px 0 0; color: var(--muted); }
     .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .lang-form { margin: 0; }
+    .lang-select { min-width: 145px; padding: 8px 10px; }
     .pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 7px 12px; font-size: .85rem; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--radius); padding: 14px; }
@@ -40,15 +43,23 @@
     .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar .inline { display:flex; align-items:center; gap:6px; }
     .checkboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; }
+    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; background: #fff; cursor: pointer; }
+    .day-chip.selected { border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.08); }
     .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .chart-wrap { position: relative; height: 320px; }
     .entries { max-height: 410px; overflow: auto; display: grid; gap: 8px; }
     .entry { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: space-between; gap: 8px; }
     .entry strong { display: block; font-size: .93rem; }
     .entry small { color: var(--muted); }
+    .entry-actions { display: flex; gap: 6px; align-items: center; }
+    .entry-edit-form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); display: none; }
+    .entry-edit-form.active { display: grid; }
+    .entry-edit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: end; }
+    .entry-edit-grid .full { grid-column: 1 / -1; }
+    .btn-xs { padding: 7px 10px; border-radius: 10px; font-size: .8rem; }
     @media (max-width: 920px) {
       .grid, .stats, .row3, .row2 { grid-template-columns: 1fr; }
+      .entry-edit-grid { grid-template-columns: 1fr; }
       .chart-wrap { height: 280px; }
     }
   </style>
@@ -61,11 +72,10 @@
       <p>{{ i18n.app_subtitle }}</p>
     </div>
     <div class="actions">
-      <form method="get" action="{{ url_for('dashboard') }}" style="margin:0">
-        <label for="lang" style="margin:0">{{ i18n.language }}</label>
-        <select id="lang" name="lang" onchange="this.form.submit()">
-          <option value="nl" {% if lang == 'nl' %}selected{% endif %}>{{ i18n.lang_nl }}</option>
-          <option value="en" {% if lang == 'en' %}selected{% endif %}>{{ i18n.lang_en }}</option>
+      <form method="get" action="{{ url_for('dashboard') }}" class="lang-form">
+        <select id="lang" name="lang" class="lang-select" onchange="this.form.submit()">
+          <option value="nl" {% if lang == 'nl' %}selected{% endif %}>🇳🇱 {{ i18n.lang_nl }}</option>
+          <option value="en" {% if lang == 'en' %}selected{% endif %}>🇬🇧 {{ i18n.lang_en }}</option>
         </select>
       </form>
       {% if logged_in %}
@@ -84,9 +94,9 @@
   {% endfor %}
 
   <div class="stats">
-    <div class="stat"><div class="label">{{ i18n.days_tracked }}</div><div class="value">{{ days|length }}</div></div>
-    <div class="stat"><div class="label">{{ i18n.feedings_logged }}</div><div class="value">{{ entries|length }}</div></div>
-    <div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value">{{ days[-1].label if days else '—' }}</div></div>
+    <div class="stat"><div class="label">{{ i18n.days_tracked }}</div><div class="value" id="statDays">{{ days|length }}</div></div>
+    <div class="stat"><div class="label">{{ i18n.feedings_logged }}</div><div class="value" id="statFeedings">{{ entries|length }}</div></div>
+    <div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value" id="statLatest">{{ days[-1].label if days else '—' }}</div></div>
   </div>
 
   <div class="grid">
@@ -117,6 +127,7 @@
       </div>
       <label>{{ i18n.day_filters }}</label>
       <div id="dayToggles" class="checkboxes"></div>
+      <p class="muted">{{ i18n.day_boundary_hint.replace('{time}', day_start_time) }}</p>
       <div class="chart-wrap"><canvas id="intakeChart"></canvas></div>
     </div>
   </div>
@@ -156,8 +167,8 @@
       <form method="post" action="{{ url_for('add_weight', lang=lang) }}">
         <div class="row2">
           <div>
-            <label for="weight_date">{{ i18n.date_ddmm }}</label>
-            <input id="weight_date" name="weight_date" pattern="\d{2}-\d{2}" value="{{ now.strftime('%d-%m') }}" required>
+            <label for="weight_date">{{ i18n.date_weight }}</label>
+            <input id="weight_date" name="weight_date" type="date" value="{{ now.strftime('%Y-%m-%d') }}" required>
           </div>
           <div>
             <label for="weight_grams">{{ i18n.weight_grams }}</label>
@@ -179,17 +190,90 @@
 
   <div class="card" style="margin-top:14px">
     <h2>{{ i18n.recent_entries }}</h2>
-    <div class="entries">
+    <div class="entries" id="entriesList">
       {% for e in entries %}
       <div class="entry">
         <div>
           <strong>{{ e.day_label }} · {{ e.time }} · {{ e.amount }} ml</strong>
           <small>{{ e.note if e.note else i18n.no_remark }}</small>
+          {% if logged_in %}
+          <form method="post" action="{{ url_for('update_entry', entry_id=e.id, lang=lang) }}" class="entry-edit-form js-async-form" id="entry-form-{{ e.id }}">
+            <div class="entry-edit-grid">
+              <div>
+                <label for="edit_entry_date_{{ e.id }}">{{ i18n.date_ddmm }}</label>
+                <input id="edit_entry_date_{{ e.id }}" name="entry_date" pattern="\d{2}-\d{2}" value="{{ e.day_label }}" required>
+              </div>
+              <div>
+                <label for="edit_feed_time_{{ e.id }}">{{ i18n.time_hhmm }}</label>
+                <input id="edit_feed_time_{{ e.id }}" name="feed_time" type="time" value="{{ e.time }}" required>
+              </div>
+              <div>
+                <label for="edit_amount_ml_{{ e.id }}">{{ i18n.intake_ml }}</label>
+                <input id="edit_amount_ml_{{ e.id }}" name="amount_ml" type="number" min="1" step="1" value="{{ e.amount }}" required>
+              </div>
+              <div class="entry-actions">
+                <button class="btn btn-xs" type="submit">{{ i18n.save_changes }}</button>
+                <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-{{ e.id }}')">{{ i18n.cancel }}</button>
+              </div>
+              <div class="full">
+                <label for="edit_note_{{ e.id }}">{{ i18n.remark_optional }}</label>
+                <textarea id="edit_note_{{ e.id }}" name="note">{{ e.note }}</textarea>
+              </div>
+            </div>
+          </form>
+          {% endif %}
         </div>
         {% if logged_in %}
-        <form method="post" action="{{ url_for('delete_entry', entry_id=e.id, lang=lang) }}" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
-          <button class="btn-danger" type="submit">{{ i18n.delete }}</button>
-        </form>
+        <div class="entry-actions">
+          <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-{{ e.id }}')">{{ i18n.edit }}</button>
+          <form method="post" action="{{ url_for('delete_entry', entry_id=e.id, lang=lang) }}" class="js-async-form" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
+            <button class="btn-danger btn-xs" type="submit">{{ i18n.delete }}</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>{{ i18n.recent_weight_entries }}</h2>
+    <div class="entries" id="weightEntriesList">
+      {% for w in weight_entries %}
+      <div class="entry">
+        <div>
+          <strong>{{ w.day_label }} · {{ w.weight }} g</strong>
+          <small>{{ w.note if w.note else i18n.no_remark }}</small>
+          {% if logged_in %}
+          <form method="post" action="{{ url_for('update_weight', weight_id=w.id, lang=lang) }}" class="entry-edit-form js-async-form" id="weight-form-{{ w.id }}">
+            <div class="entry-edit-grid">
+              <div>
+                <label for="edit_weight_date_{{ w.id }}">{{ i18n.date_weight }}</label>
+                <input id="edit_weight_date_{{ w.id }}" name="weight_date" type="date" value="{{ w.date }}" required>
+              </div>
+              <div>
+                <label for="edit_weight_grams_{{ w.id }}">{{ i18n.weight_grams }}</label>
+                <input id="edit_weight_grams_{{ w.id }}" name="weight_grams" type="number" min="1" step="1" value="{{ w.weight }}" required>
+              </div>
+              <div class="entry-actions">
+                <button class="btn btn-xs" type="submit">{{ i18n.save_changes }}</button>
+                <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-{{ w.id }}')">{{ i18n.cancel }}</button>
+              </div>
+              <div class="full">
+                <label for="edit_weight_note_{{ w.id }}">{{ i18n.remark_optional }}</label>
+                <textarea id="edit_weight_note_{{ w.id }}" name="weight_note">{{ w.note }}</textarea>
+              </div>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+        {% if logged_in %}
+        <div class="entry-actions">
+          <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-{{ w.id }}')">{{ i18n.edit }}</button>
+          <form method="post" action="{{ url_for('delete_weight', weight_id=w.id, lang=lang) }}" class="js-async-form" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
+            <button class="btn-danger btn-xs" type="submit">{{ i18n.delete }}</button>
+          </form>
+        </div>
         {% endif %}
       </div>
       {% endfor %}
@@ -199,9 +283,15 @@
 
 <script>
 const i18n = {{ i18n|tojson }};
-const dailyTotals = {{ daily_totals|tojson }};
-const detailByDay = {{ detail_by_day|tojson }};
-const weightPoints = {{ weight_points|tojson }};
+let dailyTotals = {{ daily_totals|tojson }};
+let detailByDay = {{ detail_by_day|tojson }};
+let weightPoints = {{ weight_points|tojson }};
+let recentEntries = {{ entries|tojson }};
+let recentWeightEntries = {{ weight_entries|tojson }};
+const dayStartTime = "{{ day_start_time }}";
+const dayStartMinutes = Number(dayStartTime.split(':')[0]) * 60 + Number(dayStartTime.split(':')[1]);
+const dayDurationMinutes = 24 * 60;
+const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
 
 let selectedDates = new Set(detailByDay.map(d => d.date));
@@ -211,20 +301,130 @@ let totalsType = 'bar';
 const dayToggles = document.getElementById('dayToggles');
 const intakeViewSelect = document.getElementById('intakeView');
 const totalsTypeSelect = document.getElementById('totalsType');
+const entriesList = document.getElementById('entriesList');
+const weightEntriesList = document.getElementById('weightEntriesList');
+const updateEntryBaseUrl = "{{ url_for('update_entry', entry_id=0, lang=lang) }}";
+const deleteEntryBaseUrl = "{{ url_for('delete_entry', entry_id=0, lang=lang) }}";
+const updateWeightBaseUrl = "{{ url_for('update_weight', weight_id=0, lang=lang) }}";
+const deleteWeightBaseUrl = "{{ url_for('delete_weight', weight_id=0, lang=lang) }}";
+
+function withId(baseUrl, id) {
+  return baseUrl.replace('/0?', `/${id}?`);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
 
 function buildDayToggles() {
   dayToggles.innerHTML = '';
   detailByDay.forEach((day, idx) => {
-    const label = document.createElement('label');
-    label.className = 'day-chip';
-    label.innerHTML = `<span class="dot" style="background:${colors[idx % colors.length]}"></span>
-      <input type="checkbox" data-date="${day.date}" ${selectedDates.has(day.date) ? 'checked' : ''}> ${day.label}`;
-    label.querySelector('input').addEventListener('change', (ev) => {
-      if (ev.target.checked) selectedDates.add(day.date); else selectedDates.delete(day.date);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `day-chip${selectedDates.has(day.date) ? ' selected' : ''}`;
+    chip.innerHTML = `<span class="dot" style="background:${colors[idx % colors.length]}"></span> ${day.label}`;
+    chip.addEventListener('click', () => {
+      if (selectedDates.has(day.date)) selectedDates.delete(day.date); else selectedDates.add(day.date);
+      chip.classList.toggle('selected', selectedDates.has(day.date));
       renderIntakeChart();
     });
-    dayToggles.appendChild(label);
+    dayToggles.appendChild(chip);
   });
+}
+
+function toggleEditForm(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.classList.toggle('active');
+}
+
+function renderEntriesList() {
+  if (!entriesList) return;
+  entriesList.innerHTML = recentEntries.map((e) => `
+      <div class="entry">
+        <div>
+          <strong>${escapeHtml(e.day_label)} · ${escapeHtml(e.time)} · ${escapeHtml(e.amount)} ml</strong>
+          <small>${escapeHtml(e.note || i18n.no_remark)}</small>
+          ${loggedIn ? `
+          <form method="post" action="${withId(updateEntryBaseUrl, e.id)}" class="entry-edit-form js-async-form" id="entry-form-${e.id}">
+            <div class="entry-edit-grid">
+              <div>
+                <label for="edit_entry_date_${e.id}">${escapeHtml(i18n.date_ddmm)}</label>
+                <input id="edit_entry_date_${e.id}" name="entry_date" pattern="\\d{2}-\\d{2}" value="${escapeHtml(e.day_label)}" required>
+              </div>
+              <div>
+                <label for="edit_feed_time_${e.id}">${escapeHtml(i18n.time_hhmm)}</label>
+                <input id="edit_feed_time_${e.id}" name="feed_time" type="time" value="${escapeHtml(e.time)}" required>
+              </div>
+              <div>
+                <label for="edit_amount_ml_${e.id}">${escapeHtml(i18n.intake_ml)}</label>
+                <input id="edit_amount_ml_${e.id}" name="amount_ml" type="number" min="1" step="1" value="${escapeHtml(e.amount)}" required>
+              </div>
+              <div class="entry-actions">
+                <button class="btn btn-xs" type="submit">${escapeHtml(i18n.save_changes)}</button>
+                <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-${e.id}')">${escapeHtml(i18n.cancel)}</button>
+              </div>
+              <div class="full">
+                <label for="edit_note_${e.id}">${escapeHtml(i18n.remark_optional)}</label>
+                <textarea id="edit_note_${e.id}" name="note">${escapeHtml(e.note || '')}</textarea>
+              </div>
+            </div>
+          </form>` : ''}
+        </div>
+        ${loggedIn ? `
+        <div class="entry-actions">
+          <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-${e.id}')">${escapeHtml(i18n.edit)}</button>
+          <form method="post" action="${withId(deleteEntryBaseUrl, e.id)}" class="js-async-form" style="margin:0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
+            <button class="btn-danger btn-xs" type="submit">${escapeHtml(i18n.delete)}</button>
+          </form>
+        </div>` : ''}
+      </div>
+    `).join('');
+}
+
+function renderWeightEntriesList() {
+  if (!weightEntriesList) return;
+  weightEntriesList.innerHTML = recentWeightEntries.map((w) => `
+      <div class="entry">
+        <div>
+          <strong>${escapeHtml(w.day_label)} · ${escapeHtml(w.weight)} g</strong>
+          <small>${escapeHtml(w.note || i18n.no_remark)}</small>
+          ${loggedIn ? `
+          <form method="post" action="${withId(updateWeightBaseUrl, w.id)}" class="entry-edit-form js-async-form" id="weight-form-${w.id}">
+            <div class="entry-edit-grid">
+              <div>
+                <label for="edit_weight_date_${w.id}">${escapeHtml(i18n.date_weight)}</label>
+                <input id="edit_weight_date_${w.id}" name="weight_date" type="date" value="${escapeHtml(w.date)}" required>
+              </div>
+              <div>
+                <label for="edit_weight_grams_${w.id}">${escapeHtml(i18n.weight_grams)}</label>
+                <input id="edit_weight_grams_${w.id}" name="weight_grams" type="number" min="1" step="1" value="${escapeHtml(w.weight)}" required>
+              </div>
+              <div class="entry-actions">
+                <button class="btn btn-xs" type="submit">${escapeHtml(i18n.save_changes)}</button>
+                <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-${w.id}')">${escapeHtml(i18n.cancel)}</button>
+              </div>
+              <div class="full">
+                <label for="edit_weight_note_${w.id}">${escapeHtml(i18n.remark_optional)}</label>
+                <textarea id="edit_weight_note_${w.id}" name="weight_note">${escapeHtml(w.note || '')}</textarea>
+              </div>
+            </div>
+          </form>` : ''}
+        </div>
+        ${loggedIn ? `
+        <div class="entry-actions">
+          <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-${w.id}')">${escapeHtml(i18n.edit)}</button>
+          <form method="post" action="${withId(deleteWeightBaseUrl, w.id)}" class="js-async-form" style="margin:0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
+            <button class="btn-danger btn-xs" type="submit">${escapeHtml(i18n.delete)}</button>
+          </form>
+        </div>` : ''}
+      </div>
+    `).join('');
 }
 
 function intakeDatasets() {
@@ -233,9 +433,9 @@ function intakeDatasets() {
     const data = day.points.map(p => {
       if (intakeView === 'cumulative') {
         running += p.amount;
-        return { x: p.minutes, y: running };
+        return { x: p.chart_minutes, y: running, amount: p.amount, time: p.time };
       }
-      return { x: p.minutes, y: p.amount };
+      return { x: p.chart_minutes, y: p.amount, amount: p.amount, time: p.time };
     });
 
     return {
@@ -250,6 +450,28 @@ function intakeDatasets() {
       spanGaps: true
     };
   });
+}
+
+function chartMinuteToClockLabel(value) {
+  const normalized = ((Math.round(value) % dayDurationMinutes) + dayDurationMinutes) % dayDurationMinutes;
+  const absolute = (normalized + dayStartMinutes) % dayDurationMinutes;
+  const hours = String(Math.floor(absolute / 60)).padStart(2, '0');
+  const mins = String(absolute % 60).padStart(2, '0');
+  return `${hours}:${mins}`;
+}
+
+function intakeXBounds() {
+  const allX = intakeChart.data.datasets.flatMap(ds => ds.data.map(point => point.x));
+  if (!allX.length) {
+    return { min: 0, max: dayDurationMinutes - 1 };
+  }
+  const minX = Math.min(...allX);
+  const maxX = Math.max(...allX);
+  const pad = 15;
+  return {
+    min: Math.max(0, minX - pad),
+    max: Math.min(dayDurationMinutes - 1, maxX + pad)
+  };
 }
 
 const totalsChart = new Chart(document.getElementById('totalsChart'), {
@@ -286,14 +508,31 @@ const intakeChart = new Chart(document.getElementById('intakeChart'), {
       x: {
         type: 'linear',
         min: 0,
-        max: 1440,
+        max: dayDurationMinutes - 1,
         title: { display: true, text: i18n.single_x },
         ticks: {
-          stepSize: 180,
-          callback: value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
+          stepSize: 120,
+          callback: value => chartMinuteToClockLabel(value)
         }
       },
       y: { beginAtZero: true, title: { display: true, text: i18n.single_y_cumulative } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const time = ctx.raw?.time || '';
+            const amount = ctx.raw?.amount ?? 0;
+            if (intakeView === 'cumulative') {
+              return [
+                `${i18n.tooltip_cumulative}: ${ctx.raw?.y ?? 0} ml`,
+                `${time} : ${amount} ml`
+              ];
+            }
+            return `${time} : ${amount} ml`;
+          }
+        }
+      }
     }
   }
 });
@@ -301,10 +540,9 @@ const intakeChart = new Chart(document.getElementById('intakeChart'), {
 const weightChart = new Chart(document.getElementById('weightChart'), {
   type: 'line',
   data: {
-    labels: weightPoints.map(p => p.label),
     datasets: [{
       label: i18n.weight_dataset,
-      data: weightPoints.map(p => p.weight),
+      data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
       borderColor: '#7c3aed',
       backgroundColor: '#7c3aed',
       tension: 0.25,
@@ -316,14 +554,35 @@ const weightChart = new Chart(document.getElementById('weightChart'), {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      x: { title: { display: true, text: i18n.weight_x } },
+      x: {
+        type: 'linear',
+        title: { display: true, text: i18n.weight_x },
+        ticks: {
+          callback: (value) => {
+            const asDate = new Date((Number(value) - 719163) * 86400000);
+            const day = String(asDate.getUTCDate()).padStart(2, '0');
+            const month = String(asDate.getUTCMonth() + 1).padStart(2, '0');
+            return `${day}-${month}`;
+          }
+        }
+      },
       y: { title: { display: true, text: i18n.weight_y } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          title: (items) => items[0]?.raw?.full_label || ''
+        }
+      }
     }
   }
 });
 
 function renderIntakeChart() {
   intakeChart.data.datasets = intakeDatasets();
+  const { min, max } = intakeXBounds();
+  intakeChart.options.scales.x.min = min;
+  intakeChart.options.scales.x.max = max;
   intakeChart.options.scales.y.title.text = intakeView === 'cumulative' ? i18n.single_y_cumulative : i18n.single_y_individual;
   intakeChart.update();
 }
@@ -331,6 +590,68 @@ function renderIntakeChart() {
 function renderTotalsChart() {
   totalsChart.config.type = totalsType;
   totalsChart.update();
+}
+
+function renderWeightChart() {
+  const values = weightPoints.map(p => p.day_index);
+  const minX = values.length ? Math.min(...values) - 0.5 : 0;
+  const maxX = values.length ? Math.max(...values) + 0.5 : 1;
+  weightChart.data.datasets[0].data = weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label }));
+  weightChart.options.scales.x.min = minX;
+  weightChart.options.scales.x.max = maxX;
+  weightChart.update();
+}
+
+function updateStats(days, entries) {
+  const statDays = document.getElementById('statDays');
+  const statFeedings = document.getElementById('statFeedings');
+  const statLatest = document.getElementById('statLatest');
+  if (statDays) statDays.textContent = days.length;
+  if (statFeedings) statFeedings.textContent = entries.length;
+  if (statLatest) statLatest.textContent = days.length ? days[days.length - 1].label : '—';
+}
+
+function applyDashboardData(data) {
+  dailyTotals = data.daily_totals;
+  detailByDay = data.detail_by_day;
+  weightPoints = data.weight_points;
+  recentEntries = data.entries;
+  recentWeightEntries = data.weight_entries;
+  selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
+  if (!selectedDates.size) {
+    selectedDates = new Set(detailByDay.map(d => d.date));
+  }
+  totalsChart.data.labels = dailyTotals.map(d => d.label);
+  totalsChart.data.datasets[0].data = dailyTotals.map(d => d.total);
+  buildDayToggles();
+  renderTotalsChart();
+  renderIntakeChart();
+  renderWeightChart();
+  renderEntriesList();
+  renderWeightEntriesList();
+  updateStats(data.days, data.entries);
+  bindAsyncForms();
+}
+
+async function handleAsyncSubmit(event) {
+  event.preventDefault();
+  const form = event.target;
+  const response = await fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form),
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  });
+  if (!response.ok) return;
+  const payload = await response.json();
+  if (!payload.success || !payload.data) return;
+  applyDashboardData(payload.data);
+}
+
+function bindAsyncForms() {
+  document.querySelectorAll('.js-async-form').forEach((form) => {
+    form.removeEventListener('submit', handleAsyncSubmit);
+    form.addEventListener('submit', handleAsyncSubmit);
+  });
 }
 
 intakeViewSelect.addEventListener('change', (ev) => {
@@ -346,6 +667,8 @@ totalsTypeSelect.addEventListener('change', (ev) => {
 buildDayToggles();
 renderIntakeChart();
 renderTotalsChart();
+renderWeightChart();
+bindAsyncForms();
 </script>
 </body>
 </html>
