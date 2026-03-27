@@ -18,6 +18,7 @@
     .lang-form { margin: 0; }
     .lang-select { min-width: 145px; padding: 8px 10px; }
     .pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 7px 12px; font-size: .85rem; }
+    .quick-log-link { text-decoration: none; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--radius); padding: 14px; }
     .card h2 { margin: 0 0 10px; font-size: 1.1rem; }
@@ -58,7 +59,14 @@
     .entry-edit-grid .full { grid-column: 1 / -1; }
     .btn-xs { padding: 7px 10px; border-radius: 10px; font-size: .8rem; }
     @media (max-width: 920px) {
-      .grid, .stats, .row3, .row2 { grid-template-columns: 1fr; }
+      .grid, .row3, .row2 { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .stat { padding: 10px; }
+      .stat .label { font-size: .74rem; }
+      .stat .value { font-size: 1.25rem; }
+      .actions { width: 100%; }
+      .actions .quick-log-link { flex: 1 1 100%; }
+      .actions .quick-log-link button { width: 100%; }
       .entry-edit-grid { grid-template-columns: 1fr; }
       .chart-wrap { height: 280px; }
     }
@@ -79,6 +87,7 @@
         </select>
       </form>
       {% if logged_in %}
+        <a href="#logSection" class="quick-log-link"><button type="button" class="btn">{{ i18n.quick_log }}</button></a>
         <span class="pill">{{ i18n.edit_mode }}</span>
         <form method="post" action="{{ url_for('logout', lang=lang) }}" style="margin:0">
           <button type="submit" class="btn-muted">{{ i18n.logout }}</button>
@@ -118,7 +127,7 @@
       <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="logSection">
       <h2>{{ i18n.intake_time_title }}</h2>
       <div class="toolbar">
         <div class="inline">
