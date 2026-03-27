@@ -1,0 +1,25 @@
+name: Startup Sanity Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  startup-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run startup sanity check
+        run: python scripts/startup_sanity_check.py

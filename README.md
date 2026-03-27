@@ -60,3 +60,15 @@ SQLite database file is persisted at `/data/babylog.db`.
 ## API
 
 - `GET /api/data` returns intake and weight chart data in JSON.
+
+## CI / startup sanity check
+
+To catch startup/import issues early (for example duplicate Flask endpoint
+registrations), run:
+
+```bash
+python scripts/startup_sanity_check.py
+```
+
+A GitHub Actions workflow runs this check automatically on pull requests and
+pushes to `main`.
