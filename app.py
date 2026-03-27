@@ -221,6 +221,7 @@ def load_dashboard_data():
     ).fetchall()
 
     by_day = {}
+    intake_by_day = {}
     all_entries = []
     for row in rows:
         intake_day = intake_day_for(row["entry_date"], row["feed_time"])
@@ -231,24 +232,40 @@ def load_dashboard_data():
                 "points": [],
                 "total": 0,
             }
+
+        intake_day = intake_day_for(row["entry_date"], row["feed_time"])
+        if intake_day not in intake_by_day:
+            intake_by_day[intake_day] = {
+                "date": intake_day,
+                "label": as_dd_mm(intake_day),
+                "points": [],
+                "total": 0,
+            }
+
         time_minutes = parse_minutes(row["feed_time"])
         point = {
             "id": row["id"],
-            "date": row["entry_date"],
+            "date": iso_date,
             "intake_day": intake_day,
-            "day_label": as_dd_mm(row["entry_date"]),
+            "day_label": as_dd_mm(iso_date),
             "time": row["feed_time"],
             "amount": int(row["amount_ml"]),
             "note": row["note"] or "",
             "minutes": time_minutes,
             "chart_minutes": shifted_minutes(time_minutes),
         }
-        by_day[intake_day]["points"].append(point)
-        by_day[intake_day]["total"] += point["amount"]
+        by_day[iso_date]["points"].append(point)
+        by_day[iso_date]["total"] += point["amount"]
+        intake_by_day[intake_day]["points"].append(point)
+        intake_by_day[intake_day]["total"] += point["amount"]
         all_entries.append(point)
 
     ordered_days = sorted(by_day.values(), key=lambda d: d["date"])
     for day in ordered_days:
+        day["points"] = sorted(day["points"], key=lambda p: (p["chart_minutes"], p["id"]))
+
+    ordered_intake_days = sorted(intake_by_day.values(), key=lambda d: d["date"])
+    for day in ordered_intake_days:
         day["points"] = sorted(day["points"], key=lambda p: (p["chart_minutes"], p["id"]))
 
     daily_totals = [{"date": d["date"], "label": d["label"], "total": d["total"]} for d in ordered_days]
@@ -283,7 +300,7 @@ def load_dashboard_data():
 
     return {
         "days": [{"date": d["date"], "label": d["label"]} for d in ordered_days],
-        "detail_by_day": ordered_days,
+        "detail_by_day": ordered_intake_days,
         "daily_totals": daily_totals,
         "entries": list(reversed(all_entries)),
         "weight_points": weight_points,
@@ -467,6 +484,78 @@ def delete_weight(weight_id):
     db.execute("DELETE FROM weight_entries WHERE id = ?", (weight_id,))
     db.commit()
     return success_response("weight_deleted", lang)
+
+
+@app.route("/update/<int:entry_id>", methods=["POST"])
+@login_required
+def update_entry(entry_id):
+    lang = get_language()
+    date_dd_mm = (request.form.get("entry_date") or "").strip()
+    feed_time = (request.form.get("feed_time") or "").strip().replace("-", ":")
+    amount_ml = request.form.get("amount_ml", type=int)
+    note = (request.form.get("note") or "").strip()
+
+    iso_date = parse_user_date(date_dd_mm)
+    if not iso_date:
+        flash(t("date_format_error", lang), "error")
+        return redirect(url_for("dashboard", lang=lang))
+
+    try:
+        datetime.strptime(feed_time, "%H:%M")
+    except ValueError:
+        flash(t("time_format_error", lang), "error")
+        return redirect(url_for("dashboard", lang=lang))
+
+    if amount_ml is None or amount_ml <= 0:
+        flash(t("intake_amount_error", lang), "error")
+        return redirect(url_for("dashboard", lang=lang))
+
+    db = get_db()
+    db.execute(
+        "UPDATE entries SET entry_date = ?, feed_time = ?, amount_ml = ?, note = ? WHERE id = ?",
+        (iso_date, feed_time, amount_ml, note, entry_id),
+    )
+    db.commit()
+    flash(t("entry_updated", lang), "success")
+    return redirect(url_for("dashboard", lang=lang))
+
+
+@app.route("/update-weight/<int:weight_id>", methods=["POST"])
+@login_required
+def update_weight(weight_id):
+    lang = get_language()
+    date_dd_mm = (request.form.get("weight_date") or "").strip()
+    weight_grams = request.form.get("weight_grams", type=int)
+    note = (request.form.get("weight_note") or "").strip()
+
+    iso_date = parse_user_date(date_dd_mm)
+    if not iso_date:
+        flash(t("date_format_error", lang), "error")
+        return redirect(url_for("dashboard", lang=lang))
+
+    if weight_grams is None or weight_grams <= 0:
+        flash(t("weight_amount_error", lang), "error")
+        return redirect(url_for("dashboard", lang=lang))
+
+    db = get_db()
+    db.execute(
+        "UPDATE weight_entries SET measure_date = ?, weight_grams = ?, note = ? WHERE id = ?",
+        (iso_date, weight_grams, note, weight_id),
+    )
+    db.commit()
+    flash(t("weight_updated", lang), "success")
+    return redirect(url_for("dashboard", lang=lang))
+
+
+@app.route("/delete-weight/<int:weight_id>", methods=["POST"])
+@login_required
+def delete_weight(weight_id):
+    lang = get_language()
+    db = get_db()
+    db.execute("DELETE FROM weight_entries WHERE id = ?", (weight_id,))
+    db.commit()
+    flash(t("weight_deleted", lang), "success")
+    return redirect(url_for("dashboard", lang=lang))
 
 
 @app.route("/api/data")

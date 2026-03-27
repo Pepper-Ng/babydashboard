@@ -433,9 +433,9 @@ function intakeDatasets() {
     const data = day.points.map(p => {
       if (intakeView === 'cumulative') {
         running += p.amount;
-        return { x: p.chart_minutes, y: running };
+        return { x: p.chart_minutes, y: running, amount: p.amount, time: p.time };
       }
-      return { x: p.chart_minutes, y: p.amount };
+      return { x: p.chart_minutes, y: p.amount, amount: p.amount, time: p.time };
     });
 
     return {
@@ -516,6 +516,23 @@ const intakeChart = new Chart(document.getElementById('intakeChart'), {
         }
       },
       y: { beginAtZero: true, title: { display: true, text: i18n.single_y_cumulative } }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const time = ctx.raw?.time || '';
+            const amount = ctx.raw?.amount ?? 0;
+            if (intakeView === 'cumulative') {
+              return [
+                `${i18n.tooltip_cumulative}: ${ctx.raw?.y ?? 0} ml`,
+                `${time} : ${amount} ml`
+              ];
+            }
+            return `${time} : ${amount} ml`;
+          }
+        }
+      }
     }
   }
 });
