@@ -127,7 +127,7 @@
       <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
     </div>
 
-    <div class="card" id="logSection">
+    <div class="card">
       <h2>{{ i18n.intake_time_title }}</h2>
       <div class="toolbar">
         <div class="inline">
@@ -151,7 +151,7 @@
       <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="logSection">
       {% if logged_in %}
       <h2>{{ i18n.add_intake_title }}</h2>
       <form method="post" action="{{ url_for('add_entry', lang=lang) }}" class="js-async-form">
