@@ -62,6 +62,7 @@ def column_exists(db, table_name, column_name):
 def init_db():
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
     db = sqlite3.connect(app.config["DATABASE"])
+    db.row_factory = sqlite3.Row
     db.execute(
         """
         CREATE TABLE IF NOT EXISTS entries (

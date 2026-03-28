@@ -824,7 +824,8 @@ function updateStats(days, entries) {
 function updateDayBoundaryHint() {
   if (!dayBoundaryHint) return;
   const key = useShiftedDayBoundary ? 'day_boundary_hint' : 'day_boundary_hint_calendar';
-  const endTime = `${String((dayStartMinutes + (24 * 60 - 1)) // 60 % 24).padStart(2, '0')}:${String((dayStartMinutes + (24 * 60 - 1)) % 60).padStart(2, '0')}`;
+  const endMinutesTotal = (dayStartMinutes + (24 * 60 - 1)) % dayDurationMinutes;
+  const endTime = `${String(Math.floor(endMinutesTotal / 60)).padStart(2, '0')}:${String(endMinutesTotal % 60).padStart(2, '0')}`;
   dayBoundaryHint.textContent = i18n[key].replace('{time}', dayStartTime).replace('{end_time}', endTime);
 }
 
