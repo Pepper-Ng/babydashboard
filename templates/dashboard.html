@@ -43,6 +43,8 @@
     .muted { color: var(--muted); font-size: .88rem; }
     .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar .inline { display:flex; align-items:center; gap:6px; }
+    .toolbar .spacer { margin-left: auto; }
+    .icon-btn { border: 1px solid #cbd5e1; background: #fff; color: #1e293b; padding: 8px 10px; border-radius: 10px; }
     .checkboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
     .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; background: #fff; cursor: pointer; }
     .day-chip.selected { border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.08); }
@@ -58,6 +60,22 @@
     .entry-edit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: end; }
     .entry-edit-grid .full { grid-column: 1 / -1; }
     .btn-xs { padding: 7px 10px; border-radius: 10px; font-size: .8rem; }
+    .quick-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+    .tag-options { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 6px 10px; font-size: .8rem; display: inline-flex; align-items: center; gap: 6px; }
+    .tag-pill input { width: 14px; height: 14px; margin: 0; }
+    .entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .meta-chip { font-size: .75rem; color: #334155; background: #f1f5f9; border-radius: 999px; padding: 3px 8px; }
+    .toggle-pill { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cbd5e1; border-radius: 999px; padding: 6px 10px; background: #fff; }
+    .toggle-pill input { width: 34px; height: 18px; accent-color: #2563eb; }
+    .insights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; padding: 10px 14px; border-radius: 10px; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; box-shadow: var(--shadow); display: none; }
+    .toast.show { display: block; }
+    .chart-modal { position: fixed; inset: 0; background: rgba(15,23,42,.8); display: none; align-items: center; justify-content: center; z-index: 50; padding: 3vh 3vw; }
+    .chart-modal.open { display: flex; }
+    .chart-modal-content { width: 90vw; height: 90vh; background: #fff; border-radius: 14px; padding: 12px; position: relative; }
+    .chart-modal-content .chart-wrap { height: calc(90vh - 80px); }
+    .modal-close { position: absolute; right: 10px; top: 10px; }
     @media (max-width: 920px) {
       .grid, .row3, .row2 { grid-template-columns: 1fr; }
       .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -69,6 +87,10 @@
       .actions .quick-log-link button { width: 100%; }
       .entry-edit-grid { grid-template-columns: 1fr; }
       .chart-wrap { height: 280px; }
+      .insights { grid-template-columns: 1fr 1fr; }
+      .tag-options { display: grid; grid-template-columns: 1fr; gap: 6px; }
+      .tag-pill { width: 100%; justify-content: flex-start; }
+      .chart-modal-content { width: 94vw; height: 92vh; }
     }
   </style>
 </head>
@@ -107,6 +129,12 @@
     <div class="stat"><div class="label">{{ i18n.feedings_logged }}</div><div class="value" id="statFeedings">{{ entries|length }}</div></div>
     <div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value" id="statLatest">{{ days[-1].label if days else '—' }}</div></div>
   </div>
+  <div class="insights">
+    <div class="stat"><div class="label">{{ i18n.avg_day_intake }}</div><div class="value" id="insightAvgDay">—</div></div>
+    <div class="stat"><div class="label">{{ i18n.min_max_day }}</div><div class="value" id="insightMinMax">—</div></div>
+    <div class="stat"><div class="label">{{ i18n.avg_feed_size }}</div><div class="value" id="insightAvgFeed">—</div></div>
+    <div class="stat"><div class="label">{{ i18n.time_since_last_feed }}</div><div class="value" id="insightSinceFeed">—</div></div>
+  </div>
 
   <div class="grid">
     <div class="card">
@@ -119,10 +147,11 @@
             <option value="line">{{ i18n.line }}</option>
           </select>
         </div>
-        <label class="inline" style="margin:0">
+        <label class="toggle-pill" style="margin:0">
           <input id="dayBoundaryMode" type="checkbox" checked>
           <span>{{ i18n.use_shifted_day }}</span>
         </label>
+        <button class="icon-btn spacer" type="button" data-fullscreen-chart="totalsChart">{{ i18n.fullscreen }}</button>
       </div>
       <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
     </div>
@@ -137,10 +166,11 @@
             <option value="individual">{{ i18n.intake_individual }}</option>
           </select>
         </div>
+        <button class="icon-btn spacer" type="button" data-fullscreen-chart="intakeChart">{{ i18n.fullscreen }}</button>
       </div>
       <label>{{ i18n.day_filters }}</label>
       <div id="dayToggles" class="checkboxes"></div>
-      <p class="muted" id="dayBoundaryHint">{{ i18n.day_boundary_hint.replace('{time}', day_start_time) }}</p>
+      <p class="muted" id="dayBoundaryHint">{{ i18n.day_boundary_hint.replace('{time}', day_start_time).replace('{end_time}', day_end_time) }}</p>
       <div class="chart-wrap"><canvas id="intakeChart"></canvas></div>
     </div>
   </div>
@@ -148,13 +178,17 @@
   <div class="grid" style="margin-top:14px;">
     <div class="card">
       <h2>{{ i18n.weight_trend_title }}</h2>
+      <div class="toolbar">
+        <button class="icon-btn spacer" type="button" data-fullscreen-chart="weightChart">{{ i18n.fullscreen }}</button>
+      </div>
       <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
+      <p class="muted" id="weightSummary"></p>
     </div>
 
     <div class="card" id="logSection">
       {% if logged_in %}
       <h2>{{ i18n.add_intake_title }}</h2>
-      <form method="post" action="{{ url_for('add_entry', lang=lang) }}" class="js-async-form">
+      <form method="post" action="{{ url_for('add_entry', lang=lang) }}" class="js-async-form" id="addEntryForm">
         <div class="row3">
           <div>
             <label for="entry_date">{{ i18n.date_ddmm }}</label>
@@ -172,6 +206,22 @@
         <div>
           <label for="note">{{ i18n.remark_optional }}</label>
           <textarea id="note" name="note"></textarea>
+        </div>
+        <div>
+          <label>{{ i18n.quick_add }}</label>
+          <div class="quick-add">
+            {% for amount in [60,90,130,150,200] %}
+              <button type="button" class="btn-muted btn-xs js-quick-add" data-amount="{{ amount }}">{{ amount }} ml</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <label>{{ i18n.tags }}</label>
+          <div class="tag-options">
+            {% for tag in [i18n.tag_slept_through, i18n.tag_sleepy, i18n.tag_spit_up] %}
+              <label class="tag-pill"><input type="checkbox" name="tags" value="{{ tag }}"> {{ tag }}</label>
+            {% endfor %}
+          </div>
         </div>
         <button class="btn" type="submit">{{ i18n.save_intake }}</button>
       </form>
@@ -209,6 +259,14 @@
         <div>
           <strong>{{ e.day_label }} · {{ e.time }} · {{ e.amount }} ml</strong>
           <small>{{ e.note if e.note else i18n.no_remark }}</small>
+          <div class="entry-meta">
+            {% for tag in e.tags %}
+              <span class="meta-chip">{{ tag }}</span>
+            {% endfor %}
+            {% if e.updated_at %}
+              <span class="meta-chip">{{ i18n.edited }} {{ e.updated_at[:16].replace('T', ' ') }}</span>
+            {% endif %}
+          </div>
           {% if logged_in %}
           <form method="post" action="{{ url_for('update_entry', entry_id=e.id, lang=lang) }}" class="entry-edit-form js-async-form" id="entry-form-{{ e.id }}">
             <div class="entry-edit-grid">
@@ -231,6 +289,14 @@
               <div class="full">
                 <label for="edit_note_{{ e.id }}">{{ i18n.remark_optional }}</label>
                 <textarea id="edit_note_{{ e.id }}" name="note">{{ e.note }}</textarea>
+              </div>
+              <div class="full">
+                <label>{{ i18n.tags }}</label>
+                <div class="tag-options">
+                  {% for tag in [i18n.tag_slept_through, i18n.tag_sleepy, i18n.tag_spit_up] %}
+                    <label class="tag-pill"><input type="checkbox" name="tags" value="{{ tag }}" {% if tag in e.tags %}checked{% endif %}> {{ tag }}</label>
+                  {% endfor %}
+                </div>
               </div>
             </div>
           </form>
@@ -291,6 +357,14 @@
       </div>
       {% endfor %}
     </div>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="chartModal" class="chart-modal" aria-hidden="true">
+  <div class="chart-modal-content">
+    <button type="button" class="btn-muted btn-xs modal-close" id="chartModalClose">{{ i18n.close }}</button>
+    <h3 id="chartModalTitle"></h3>
+    <div class="chart-wrap"><canvas id="chartModalCanvas"></canvas></div>
   </div>
 </div>
 
@@ -405,12 +479,19 @@ const intakeViewSelect = document.getElementById('intakeView');
 const totalsTypeSelect = document.getElementById('totalsType');
 const dayBoundaryModeInput = document.getElementById('dayBoundaryMode');
 const dayBoundaryHint = document.getElementById('dayBoundaryHint');
+const addEntryForm = document.getElementById('addEntryForm');
+const toast = document.getElementById('toast');
+const chartModal = document.getElementById('chartModal');
+const chartModalClose = document.getElementById('chartModalClose');
+const chartModalTitle = document.getElementById('chartModalTitle');
 const entriesList = document.getElementById('entriesList');
 const weightEntriesList = document.getElementById('weightEntriesList');
 const updateEntryBaseUrl = "{{ url_for('update_entry', entry_id=0, lang=lang) }}";
 const deleteEntryBaseUrl = "{{ url_for('delete_entry', entry_id=0, lang=lang) }}";
 const updateWeightBaseUrl = "{{ url_for('update_weight', weight_id=0, lang=lang) }}";
 const deleteWeightBaseUrl = "{{ url_for('delete_weight', weight_id=0, lang=lang) }}";
+const submittingForms = new WeakSet();
+let liveSinceFeedInterval = null;
 
 function withId(baseUrl, id) {
   return baseUrl.replace('/0?', `/${id}?`);
@@ -423,6 +504,19 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function formatEditStamp(value) {
+  if (!value) return '';
+  return String(value).replace('T', ' ').slice(0, 16);
+}
+
+function showToast(message) {
+  if (!toast || !message) return;
+  toast.textContent = message;
+  toast.classList.add('show');
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2400);
 }
 
 function buildDayToggles() {
@@ -455,6 +549,10 @@ function renderEntriesList() {
         <div>
           <strong>${escapeHtml(e.day_label)} · ${escapeHtml(e.time)} · ${escapeHtml(e.amount)} ml</strong>
           <small>${escapeHtml(e.note || i18n.no_remark)}</small>
+          <div class="entry-meta">
+            ${(e.tags || []).map((tag) => `<span class="meta-chip">${escapeHtml(tag)}</span>`).join('')}
+            ${e.updated_at ? `<span class="meta-chip">${escapeHtml(i18n.edited)} ${escapeHtml(formatEditStamp(e.updated_at))}</span>` : ''}
+          </div>
           ${loggedIn ? `
           <form method="post" action="${withId(updateEntryBaseUrl, e.id)}" class="entry-edit-form js-async-form" id="entry-form-${e.id}">
             <div class="entry-edit-grid">
@@ -477,6 +575,12 @@ function renderEntriesList() {
               <div class="full">
                 <label for="edit_note_${e.id}">${escapeHtml(i18n.remark_optional)}</label>
                 <textarea id="edit_note_${e.id}" name="note">${escapeHtml(e.note || '')}</textarea>
+              </div>
+              <div class="full">
+                <label>${escapeHtml(i18n.tags)}</label>
+                <div class="tag-options">
+                  ${[i18n.tag_slept_through, i18n.tag_sleepy, i18n.tag_spit_up].map((tag) => `<label class="tag-pill"><input type="checkbox" name="tags" value="${escapeHtml(tag)}" ${(e.tags || []).includes(tag) ? 'checked' : ''}> ${escapeHtml(tag)}</label>`).join('')}
+                </div>
               </div>
             </div>
           </form>` : ''}
@@ -720,7 +824,46 @@ function updateStats(days, entries) {
 function updateDayBoundaryHint() {
   if (!dayBoundaryHint) return;
   const key = useShiftedDayBoundary ? 'day_boundary_hint' : 'day_boundary_hint_calendar';
-  dayBoundaryHint.textContent = i18n[key].replace('{time}', dayStartTime);
+  const endMinutesTotal = (dayStartMinutes + (24 * 60 - 1)) % dayDurationMinutes;
+  const endTime = `${String(Math.floor(endMinutesTotal / 60)).padStart(2, '0')}:${String(endMinutesTotal % 60).padStart(2, '0')}`;
+  dayBoundaryHint.textContent = i18n[key].replace('{time}', dayStartTime).replace('{end_time}', endTime);
+}
+
+function updateInsights() {
+  const totals = dailyTotals.map((d) => d.total);
+  const avgDay = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
+  const avgFeed = recentEntries.length ? Math.round(recentEntries.reduce((a, e) => a + Number(e.amount || 0), 0) / recentEntries.length) : 0;
+  const minDay = dailyTotals.length ? dailyTotals.reduce((a, b) => a.total < b.total ? a : b) : null;
+  const maxDay = dailyTotals.length ? dailyTotals.reduce((a, b) => a.total > b.total ? a : b) : null;
+  const lastFeed = recentEntries.length ? recentEntries[0] : null;
+  const sinceMin = lastFeed ? Math.max(0, Math.round((Date.now() - new Date(`${lastFeed.date}T${lastFeed.time}:00`).getTime()) / 60000)) : null;
+  const hours = sinceMin === null ? '—' : `${Math.floor(sinceMin / 60)}h ${sinceMin % 60}m`;
+  document.getElementById('insightAvgDay').textContent = avgDay ? `${avgDay} ml` : '—';
+  document.getElementById('insightAvgFeed').textContent = avgFeed ? `${avgFeed} ml` : '—';
+  document.getElementById('insightMinMax').textContent = (minDay && maxDay) ? `${minDay.total}/${maxDay.total} ml` : '—';
+  document.getElementById('insightSinceFeed').textContent = hours;
+  const ws = document.getElementById('weightSummary');
+  if (ws) {
+    if (weightPoints.length >= 2) {
+      const last = weightPoints[weightPoints.length - 1];
+      const prev = weightPoints[weightPoints.length - 2];
+      const change = last.weight - prev.weight;
+      const days = Math.max(1, last.day_index - prev.day_index);
+      const weekly = Math.round((change / days) * 7);
+      ws.textContent = `${i18n.weight_change}: ${change >= 0 ? '+' : ''}${change} g · ${i18n.weight_weekly_gain}: ${weekly >= 0 ? '+' : ''}${weekly} g/week`;
+    } else {
+      ws.textContent = '';
+    }
+  }
+}
+
+function startLiveSinceFeedTicker() {
+  if (liveSinceFeedInterval) {
+    window.clearInterval(liveSinceFeedInterval);
+  }
+  liveSinceFeedInterval = window.setInterval(() => {
+    updateInsights();
+  }, 60000);
 }
 
 function applyDashboardData(data) {
@@ -743,12 +886,21 @@ function applyDashboardData(data) {
   renderEntriesList();
   renderWeightEntriesList();
   updateStats(normalized.days, data.entries);
+  updateInsights();
   bindAsyncForms();
 }
 
 async function handleAsyncSubmit(event) {
   event.preventDefault();
   const form = event.target;
+  if (submittingForms.has(form)) return;
+  submittingForms.add(form);
+  const submitButton = form.querySelector('button[type="submit"]');
+  const originalSubmitText = submitButton ? submitButton.textContent : '';
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = i18n.saving || originalSubmitText;
+  }
   try {
     const response = await fetch(form.action, {
       method: 'POST',
@@ -764,8 +916,60 @@ async function handleAsyncSubmit(event) {
     const payload = await response.json();
     if (!payload.success || !payload.data) return;
     applyDashboardData(payload.data);
+    if (payload.message) showToast(payload.message);
+    if (form.id === 'addEntryForm') {
+      form.reset();
+      setNowAsLocalTime();
+    }
   } catch (error) {
     console.error(error);
+  } finally {
+    submittingForms.delete(form);
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalSubmitText;
+    }
+  }
+}
+
+function setNowAsLocalTime() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const dateInput = document.getElementById('entry_date');
+  const timeInput = document.getElementById('feed_time');
+  if (dateInput) dateInput.value = `${day}-${month}`;
+  if (timeInput) timeInput.value = `${hh}:${mm}`;
+}
+
+function openChartModal(chartId) {
+  if (!chartModal) return;
+  const map = { totalsChart, intakeChart, weightChart };
+  const chart = map[chartId];
+  if (!chart) return;
+  chartModal.classList.add('open');
+  chartModal.setAttribute('aria-hidden', 'false');
+  chartModalTitle.textContent = chart.options?.plugins?.title?.text || chart.canvas.closest('.card')?.querySelector('h2')?.textContent || '';
+  const modalCtx = document.getElementById('chartModalCanvas');
+  if (window.modalChart) window.modalChart.destroy();
+  window.modalChart = new Chart(modalCtx, JSON.parse(JSON.stringify(chart.config)));
+  window.requestAnimationFrame(() => {
+    if (window.modalChart) {
+      window.modalChart.resize();
+      window.modalChart.update('none');
+    }
+  });
+}
+
+function closeChartModal() {
+  if (!chartModal) return;
+  chartModal.classList.remove('open');
+  chartModal.setAttribute('aria-hidden', 'true');
+  if (window.modalChart) {
+    window.modalChart.destroy();
+    window.modalChart = null;
   }
 }
 
@@ -811,7 +1015,28 @@ updateDayBoundaryHint();
 renderIntakeChart();
 renderTotalsChart();
 renderWeightChart();
+updateInsights();
 bindAsyncForms();
+setNowAsLocalTime();
+document.querySelectorAll('.js-quick-add').forEach((btn) => btn.addEventListener('click', () => {
+  const amount = document.getElementById('amount_ml');
+  if (amount) amount.value = btn.dataset.amount;
+}));
+document.querySelectorAll('[data-fullscreen-chart]').forEach((btn) => btn.addEventListener('click', () => openChartModal(btn.dataset.fullscreenChart)));
+if (chartModalClose) chartModalClose.addEventListener('click', closeChartModal);
+if (chartModal) chartModal.addEventListener('click', (event) => {
+  if (event.target === chartModal) closeChartModal();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeChartModal();
+});
+window.addEventListener('resize', () => {
+  if (window.modalChart && chartModal?.classList.contains('open')) {
+    window.modalChart.resize();
+    window.modalChart.update('none');
+  }
+});
+startLiveSinceFeedTicker();
 </script>
 </body>
 </html>

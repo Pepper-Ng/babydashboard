@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
@@ -53,9 +53,16 @@ def close_connection(exception):
         db.close()
 
 
+
+
+def column_exists(db, table_name, column_name):
+    cols = db.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(col["name"] == column_name for col in cols)
+
 def init_db():
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
     db = sqlite3.connect(app.config["DATABASE"])
+    db.row_factory = sqlite3.Row
     db.execute(
         """
         CREATE TABLE IF NOT EXISTS entries (
@@ -81,6 +88,14 @@ def init_db():
     )
     db.execute("CREATE INDEX IF NOT EXISTS idx_entries_date_time ON entries(entry_date, feed_time, id);")
     db.execute("CREATE INDEX IF NOT EXISTS idx_weight_entries_date ON weight_entries(measure_date, id);")
+
+    if not column_exists(db, "entries", "tags"):
+        db.execute("ALTER TABLE entries ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+    if not column_exists(db, "entries", "updated_at"):
+        db.execute("ALTER TABLE entries ADD COLUMN updated_at TEXT")
+    if not column_exists(db, "weight_entries", "updated_at"):
+        db.execute("ALTER TABLE weight_entries ADD COLUMN updated_at TEXT")
+
     db.commit()
     db.close()
 
@@ -206,7 +221,7 @@ def load_dashboard_data():
     db = get_db()
     rows = db.execute(
         """
-        SELECT id, entry_date, feed_time, amount_ml, note
+        SELECT id, entry_date, feed_time, amount_ml, note, tags, created_at, updated_at
         FROM entries
         ORDER BY entry_date ASC, feed_time ASC, id ASC
         """
@@ -214,7 +229,7 @@ def load_dashboard_data():
 
     weights = db.execute(
         """
-        SELECT id, measure_date, weight_grams, note
+        SELECT id, measure_date, weight_grams, note, created_at, updated_at
         FROM weight_entries
         ORDER BY measure_date ASC, id ASC
         """
@@ -251,6 +266,9 @@ def load_dashboard_data():
             "time": row["feed_time"],
             "amount": int(row["amount_ml"]),
             "note": row["note"] or "",
+            "tags": [tag.strip() for tag in (row["tags"] or "").split(",") if tag.strip()],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
             "minutes": time_minutes,
             "chart_minutes": shifted_minutes(time_minutes),
         }
@@ -279,6 +297,8 @@ def load_dashboard_data():
             "day_index": date_to_ordinal(row["measure_date"]),
             "weight": int(row["weight_grams"]),
             "note": row["note"] or "",
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
         for row in weights
     ]
@@ -292,6 +312,8 @@ def load_dashboard_data():
                     "day_label": point["full_label"],
                     "weight": point["weight"],
                     "note": point["note"],
+                    "created_at": point["created_at"],
+                    "updated_at": point["updated_at"],
                 }
                 for point in weight_points
             ]
@@ -323,6 +345,7 @@ def dashboard():
         logged_in=bool(session.get("logged_in")),
         now=datetime.now(),
         day_start_time=f"{DAY_START_MINUTES // 60:02d}:{DAY_START_MINUTES % 60:02d}",
+        day_end_time=f"{(DAY_START_MINUTES - 1) // 60:02d}:{(DAY_START_MINUTES - 1) % 60:02d}",
         lang=lang,
         i18n=TRANSLATIONS[lang],
     )
@@ -358,6 +381,7 @@ def add_entry():
     feed_time = (request.form.get("feed_time") or "").strip().replace("-", ":")
     amount_ml = request.form.get("amount_ml", type=int)
     note = (request.form.get("note") or "").strip()
+    tags = ",".join([tag.strip() for tag in request.form.getlist("tags") if tag.strip()])
 
     iso_date = parse_user_date(date_dd_mm)
     if not iso_date:
@@ -374,8 +398,8 @@ def add_entry():
 
     db = get_db()
     db.execute(
-        "INSERT INTO entries(entry_date, feed_time, amount_ml, note) VALUES (?, ?, ?, ?)",
-        (iso_date, feed_time, amount_ml, note),
+        "INSERT INTO entries(entry_date, feed_time, amount_ml, note, tags) VALUES (?, ?, ?, ?, ?)",
+        (iso_date, feed_time, amount_ml, note, tags),
     )
     db.commit()
     return success_response("intake_added", lang)
@@ -425,6 +449,7 @@ def update_entry(entry_id):
     feed_time = (request.form.get("feed_time") or "").strip().replace("-", ":")
     amount_ml = request.form.get("amount_ml", type=int)
     note = (request.form.get("note") or "").strip()
+    tags = ",".join([tag.strip() for tag in request.form.getlist("tags") if tag.strip()])
 
     iso_date = parse_user_date(date_dd_mm)
     if not iso_date:
@@ -443,8 +468,8 @@ def update_entry(entry_id):
 
     db = get_db()
     db.execute(
-        "UPDATE entries SET entry_date = ?, feed_time = ?, amount_ml = ?, note = ? WHERE id = ?",
-        (iso_date, feed_time, amount_ml, note, entry_id),
+        "UPDATE entries SET entry_date = ?, feed_time = ?, amount_ml = ?, note = ?, tags = ?, updated_at = ? WHERE id = ?",
+        (iso_date, feed_time, amount_ml, note, tags, datetime.now(timezone.utc).isoformat(timespec="seconds"), entry_id),
     )
     db.commit()
     return success_response("entry_updated", lang)
@@ -469,8 +494,8 @@ def update_weight(weight_id):
 
     db = get_db()
     db.execute(
-        "UPDATE weight_entries SET measure_date = ?, weight_grams = ?, note = ? WHERE id = ?",
-        (iso_date, weight_grams, note, weight_id),
+        "UPDATE weight_entries SET measure_date = ?, weight_grams = ?, note = ?, updated_at = ? WHERE id = ?",
+        (iso_date, weight_grams, note, datetime.now(timezone.utc).isoformat(timespec="seconds"), weight_id),
     )
     db.commit()
     return success_response("weight_updated", lang)
