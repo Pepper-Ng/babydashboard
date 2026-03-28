@@ -57,7 +57,7 @@ def close_connection(exception):
 
 def column_exists(db, table_name, column_name):
     cols = db.execute(f"PRAGMA table_info({table_name})").fetchall()
-    return any(col["name"] == column_name for col in cols)
+    return any((col["name"] if isinstance(col, sqlite3.Row) else col[1]) == column_name for col in cols)
 
 def init_db():
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
