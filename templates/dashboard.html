@@ -714,6 +714,8 @@ function growthSdGramsAtMonth(month) {
   return 320 + month * 35;
 }
 
+const SDS_SPREAD_MULTIPLIER = 1.18;
+
 function pchipSlopes(x, y) {
   const n = x.length;
   if (n < 2) return [];
@@ -777,6 +779,7 @@ function growthCurveSeries() {
   const birthDateIso = weightPoints.length ? weightPoints[0].date : referenceBirthDateIso;
   const minMonth = dutchBoyGrowthAnchorMonths[0];
   const maxMonth = dutchBoyGrowthAnchorMonths[dutchBoyGrowthAnchorMonths.length - 1];
+  const birthOrdinal = dateToOrdinalUtc(isoDateToUtcDate(birthDateIso));
   const sampleMonths = Array.from({ length: 220 }, (_, idx) => {
     const ratio = idx / 219;
     return minMonth + ((maxMonth - minMonth) * ratio);
@@ -784,16 +787,15 @@ function growthCurveSeries() {
   const smoothKg = pchipInterpolate(dutchBoyGrowthAnchorMonths, dutchBoyGrowthAnchorKg, sampleMonths);
 
   const meanPoints = sampleMonths.map((month, idx) => {
-    const dt = addMonthsUtc(birthDateIso, month);
     return {
-      x: dateToOrdinalUtc(dt),
+      x: birthOrdinal + (month * 30.4375),
       y: Math.round(smoothKg[idx] * 1000),
       month
     };
   });
 
   const withSds = meanPoints.map((point) => {
-    const sd = growthSdGramsAtMonth(point.month);
+    const sd = growthSdGramsAtMonth(point.month) * SDS_SPREAD_MULTIPLIER;
     return {
       x: point.x,
       mean: point.y,
@@ -819,15 +821,19 @@ function growthCurveSeries() {
 
 function weightDatasets() {
   const growth = growthCurveSeries();
+  const sdsLineColor = 'rgba(22,163,74,0.55)';
+  const meanLineColor = 'rgba(22,163,74,1)';
   return [
-    { label: '+2.5 SDS', data: growth.up2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 0 },
-    { label: '+2 SDS', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: 0 },
-    { label: '+1 SDS', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: 1 },
-    { label: 'Mean top band', data: growth.mean, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: 2 },
-    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: 'rgba(22,163,74,1)', backgroundColor: 'rgba(22,163,74,0)', tension: 0.22, borderWidth: 2, pointRadius: 0 },
-    { label: '-1 SDS', data: growth.low1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: 4 },
-    { label: '-2 SDS', data: growth.low2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: 5 },
-    { label: '-2.5 SDS', data: growth.low2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: 6 },
+    { label: '+2.5 SDS', data: growth.up2_5, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.25, tension: 0.2, sdsLabel: '+2.5', order: 1 },
+    { label: '±2.5 SDS area', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.10)', pointRadius: 0, borderWidth: 0, fill: 0, legendOnly: true, order: 0 },
+    { label: '+2 SDS', data: growth.up2, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.2, tension: 0.2, sdsLabel: '+2', order: 1 },
+    { label: '±2 SDS area', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.14)', pointRadius: 0, borderWidth: 0, fill: 2, legendOnly: true, order: 0 },
+    { label: '+1 SDS', data: growth.up1, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.15, tension: 0.2, sdsLabel: '+1', order: 1 },
+    { label: '±1 SDS area', data: growth.mean, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.20)', pointRadius: 0, borderWidth: 0, fill: 4, legendOnly: true, order: 0 },
+    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: meanLineColor, backgroundColor: 'rgba(22,163,74,0)', tension: 0.2, borderWidth: 2.2, pointRadius: 0, sdsLabel: '0', order: 2 },
+    { label: '-1 SDS', data: growth.low1, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.20)', pointRadius: 0, borderWidth: 1.15, tension: 0.2, fill: 6, sdsLabel: '-1', order: 1 },
+    { label: '-2 SDS', data: growth.low2, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.14)', pointRadius: 0, borderWidth: 1.2, tension: 0.2, fill: 7, sdsLabel: '-2', order: 1 },
+    { label: '-2.5 SDS', data: growth.low2_5, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.10)', pointRadius: 0, borderWidth: 1.25, tension: 0.2, fill: 8, sdsLabel: '-2.5', order: 1 },
     {
       label: i18n.weight_dataset,
       data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
@@ -839,6 +845,30 @@ function weightDatasets() {
     }
   ];
 }
+
+const weightSdsLabelPlugin = {
+  id: 'weightSdsLabelPlugin',
+  afterDatasetsDraw(chart) {
+    if (!chart?.chartArea || !chart?.ctx) return;
+    const { ctx, chartArea } = chart;
+    const xPos = chartArea.right + 6;
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = '12px Inter, system-ui, sans-serif';
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      if (!dataset?.sdsLabel) return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (!meta?.data?.length || meta.hidden) return;
+      const lastPoint = meta.data[meta.data.length - 1];
+      const yPos = lastPoint?.y;
+      if (!Number.isFinite(yPos) || yPos < chartArea.top || yPos > chartArea.bottom) return;
+      ctx.fillStyle = dataset.borderColor || '#166534';
+      ctx.fillText(dataset.sdsLabel, xPos, yPos);
+    });
+    ctx.restore();
+  }
+};
 
 function modalChartConfig(chartId) {
   if (chartId === 'totalsChart') {
@@ -915,7 +945,7 @@ function modalChartConfig(chartId) {
       plugins: {
         legend: {
           labels: {
-            filter: (item) => [i18n.weight_dataset, i18n.weight_growth_curve || 'Groeicurve'].includes(item.text)
+            filter: (legendItem, chartData) => !chartData.datasets?.[legendItem.datasetIndex]?.legendOnly
           }
         },
         tooltip: {
@@ -1014,13 +1044,22 @@ const weightChart = new Chart(document.getElementById('weightChart'), {
       y: { title: { display: true, text: i18n.weight_y } }
     },
     plugins: {
+      legend: {
+        labels: {
+          filter: (legendItem, chartData) => !chartData.datasets?.[legendItem.datasetIndex]?.legendOnly
+        }
+      },
       tooltip: {
         callbacks: {
           title: (items) => items[0]?.raw?.full_label || ''
         }
       }
+    },
+    layout: {
+      padding: { right: 30 }
     }
-  }
+  },
+  plugins: [weightSdsLabelPlugin]
 });
 
 function renderIntakeChart() {
