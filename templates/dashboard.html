@@ -380,6 +380,26 @@ const dayStartMinutes = Number(dayStartTime.split(':')[0]) * 60 + Number(dayStar
 const dayDurationMinutes = 24 * 60;
 const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
+
+const referenceBirthDateIso = '2025-10-12';
+const dutchBoyGrowthMeanKgByMonth = [
+  { month: 0.5, kg: 3.75 },
+  { month: 1, kg: 4.2 },
+  { month: 2, kg: 5.0 },
+  { month: 3, kg: 5.8 },
+  { month: 4, kg: 6.5 },
+  { month: 5, kg: 7.1 },
+  { month: 6, kg: 7.6 },
+  { month: 7, kg: 8.1 },
+  { month: 8, kg: 8.6 },
+  { month: 9, kg: 8.9 },
+  { month: 10, kg: 9.3 },
+  { month: 11, kg: 9.75 },
+  { month: 12, kg: 10.1 },
+  { month: 13, kg: 10.4 },
+  { month: 14, kg: 10.7 },
+  { month: 15, kg: 11.0 }
+];
 const dateColorMap = {};
 
 function defaultSelectedDates(days) {
@@ -406,6 +426,26 @@ function shiftIsoDateByDays(isoDate, amount) {
   const dt = new Date(`${isoDate}T00:00:00Z`);
   dt.setUTCDate(dt.getUTCDate() + amount);
   return dt.toISOString().slice(0, 10);
+}
+
+function isoDateToUtcDate(isoDate) {
+  return new Date(`${isoDate}T00:00:00Z`);
+}
+
+function dateToOrdinalUtc(dt) {
+  const utcMidnight = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+  return Math.floor(utcMidnight / 86400000) + 719163;
+}
+
+function addMonthsUtc(isoDate, months) {
+  const base = isoDateToUtcDate(isoDate);
+  const wholeMonths = Math.trunc(months);
+  const fractional = months - wholeMonths;
+  const shifted = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + wholeMonths, base.getUTCDate()));
+  if (fractional) {
+    shifted.setUTCDate(shifted.getUTCDate() + Math.round(fractional * 30.4375));
+  }
+  return shifted;
 }
 
 function getColorForDate(isoDate) {
@@ -685,6 +725,152 @@ function intakeXBounds() {
   };
 }
 
+
+function growthSdGramsAtMonth(month) {
+  return 320 + month * 35;
+}
+
+function growthCurveSeries() {
+  const birthDateIso = weightPoints.length ? weightPoints[0].date : referenceBirthDateIso;
+  const meanPoints = dutchBoyGrowthMeanKgByMonth.map((entry) => {
+    const dt = addMonthsUtc(birthDateIso, entry.month);
+    return {
+      x: dateToOrdinalUtc(dt),
+      y: Math.round(entry.kg * 1000),
+      month: entry.month
+    };
+  });
+
+  const withSds = meanPoints.map((point) => {
+    const sd = growthSdGramsAtMonth(point.month);
+    return {
+      x: point.x,
+      mean: point.y,
+      up1: point.y + sd,
+      up2: point.y + (2 * sd),
+      up2_5: point.y + (2.5 * sd),
+      low1: point.y - sd,
+      low2: point.y - (2 * sd),
+      low2_5: point.y - (2.5 * sd)
+    };
+  });
+
+  return {
+    mean: withSds.map((p) => ({ x: p.x, y: p.mean })),
+    up1: withSds.map((p) => ({ x: p.x, y: p.up1 })),
+    up2: withSds.map((p) => ({ x: p.x, y: p.up2 })),
+    up2_5: withSds.map((p) => ({ x: p.x, y: p.up2_5 })),
+    low1: withSds.map((p) => ({ x: p.x, y: p.low1 })),
+    low2: withSds.map((p) => ({ x: p.x, y: p.low2 })),
+    low2_5: withSds.map((p) => ({ x: p.x, y: p.low2_5 }))
+  };
+}
+
+function weightDatasets() {
+  const growth = growthCurveSeries();
+  return [
+    { label: '+2.5 SDS', data: growth.up2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 0 },
+    { label: '+2 SDS', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    { label: '+1 SDS', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: 'rgba(22,163,74,1)', backgroundColor: 'rgba(22,163,74,0.24)', tension: 0.22, borderWidth: 2, pointRadius: 0 },
+    { label: '-1 SDS', data: growth.low1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    { label: '-2 SDS', data: growth.low2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    { label: '-2.5 SDS', data: growth.low2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    {
+      label: i18n.weight_dataset,
+      data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
+      borderColor: '#7c3aed',
+      backgroundColor: '#7c3aed',
+      tension: 0.25,
+      borderWidth: 2,
+      pointRadius: 4
+    }
+  ];
+}
+
+function modalChartConfig(chartId) {
+  if (chartId === 'totalsChart') {
+    return {
+      type: totalsChart.config.type,
+      data: {
+        labels: [...totalsChart.data.labels],
+        datasets: totalsChart.data.datasets.map((ds) => ({ ...ds, data: [...ds.data] }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { ...totalsChart.options.scales.x },
+          y: { ...totalsChart.options.scales.y }
+        }
+      }
+    };
+  }
+
+  if (chartId === 'intakeChart') {
+    return {
+      type: 'line',
+      data: { datasets: intakeDatasets().map((ds) => ({ ...ds, data: ds.data.map((p) => ({ ...p })) })) },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: 'linear',
+            min: intakeChart.options.scales.x.min,
+            max: intakeChart.options.scales.x.max,
+            title: { display: true, text: i18n.single_x },
+            ticks: { stepSize: 120, callback: value => chartMinuteToClockLabel(value) }
+          },
+          y: { beginAtZero: true, title: { display: true, text: intakeView === 'cumulative' ? i18n.single_y_cumulative : i18n.single_y_individual } }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: () => '',
+              label: (ctx) => `${ctx.raw?.time || ''} : ${ctx.raw?.amount ?? 0} ml`,
+              afterLabel: (ctx) => `${i18n.tooltip_cumulative}: ${ctx.raw?.cumulative ?? 0} ml`
+            }
+          }
+        }
+      }
+    };
+  }
+
+  return {
+    type: 'line',
+    data: { datasets: weightDatasets().map((ds) => ({ ...ds, data: ds.data.map((p) => ({ ...p })) })) },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'linear',
+          min: weightChart.options.scales.x.min,
+          max: weightChart.options.scales.x.max,
+          title: { display: true, text: i18n.weight_x },
+          ticks: {
+            callback: (value) => {
+              const asDate = new Date((Number(value) - 719163) * 86400000);
+              const day = String(asDate.getUTCDate()).padStart(2, '0');
+              const month = String(asDate.getUTCMonth() + 1).padStart(2, '0');
+              return `${day}-${month}`;
+            }
+          }
+        },
+        y: { title: { display: true, text: i18n.weight_y } }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0]?.raw?.full_label || ''
+          }
+        }
+      }
+    }
+  };
+}
+
 const totalsChart = new Chart(document.getElementById('totalsChart'), {
   type: 'bar',
   data: {
@@ -750,15 +936,7 @@ const intakeChart = new Chart(document.getElementById('intakeChart'), {
 const weightChart = new Chart(document.getElementById('weightChart'), {
   type: 'line',
   data: {
-    datasets: [{
-      label: i18n.weight_dataset,
-      data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
-      borderColor: '#7c3aed',
-      backgroundColor: '#7c3aed',
-      tension: 0.25,
-      borderWidth: 2,
-      pointRadius: 4
-    }]
+    datasets: weightDatasets()
   },
   options: {
     responsive: true,
@@ -806,7 +984,7 @@ function renderWeightChart() {
   const values = weightPoints.map(p => p.day_index);
   const minX = values.length ? Math.min(...values) - 0.5 : 0;
   const maxX = values.length ? Math.max(...values) + 0.5 : 1;
-  weightChart.data.datasets[0].data = weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label }));
+  weightChart.data.datasets = weightDatasets();
   weightChart.options.scales.x.min = minX;
   weightChart.options.scales.x.max = maxX;
   weightChart.update();
@@ -954,7 +1132,7 @@ function openChartModal(chartId) {
   chartModalTitle.textContent = chart.options?.plugins?.title?.text || chart.canvas.closest('.card')?.querySelector('h2')?.textContent || '';
   const modalCtx = document.getElementById('chartModalCanvas');
   if (window.modalChart) window.modalChart.destroy();
-  window.modalChart = new Chart(modalCtx, JSON.parse(JSON.stringify(chart.config)));
+  window.modalChart = new Chart(modalCtx, modalChartConfig(chartId));
   window.requestAnimationFrame(() => {
     if (window.modalChart) {
       window.modalChart.resize();
