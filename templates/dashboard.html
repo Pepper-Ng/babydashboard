@@ -981,10 +981,11 @@ function renderTotalsChart() {
 }
 
 function renderWeightChart() {
-  const values = weightPoints.map(p => p.day_index);
-  const minX = values.length ? Math.min(...values) - 0.5 : 0;
-  const maxX = values.length ? Math.max(...values) + 0.5 : 1;
-  weightChart.data.datasets = weightDatasets();
+  const datasets = weightDatasets();
+  const allXValues = datasets.flatMap((dataset) => dataset.data.map((point) => Number(point.x))).filter((value) => Number.isFinite(value));
+  const minX = allXValues.length ? Math.min(...allXValues) - 0.5 : 0;
+  const maxX = allXValues.length ? Math.max(...allXValues) + 0.5 : 1;
+  weightChart.data.datasets = datasets;
   weightChart.options.scales.x.min = minX;
   weightChart.options.scales.x.max = maxX;
   weightChart.update();
