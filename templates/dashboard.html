@@ -382,24 +382,8 @@ const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
 
 const referenceBirthDateIso = '2025-10-12';
-const dutchBoyGrowthMeanKgByMonth = [
-  { month: 0.5, kg: 3.75 },
-  { month: 1, kg: 4.2 },
-  { month: 2, kg: 5.0 },
-  { month: 3, kg: 5.8 },
-  { month: 4, kg: 6.5 },
-  { month: 5, kg: 7.1 },
-  { month: 6, kg: 7.6 },
-  { month: 7, kg: 8.1 },
-  { month: 8, kg: 8.6 },
-  { month: 9, kg: 8.9 },
-  { month: 10, kg: 9.3 },
-  { month: 11, kg: 9.75 },
-  { month: 12, kg: 10.1 },
-  { month: 13, kg: 10.4 },
-  { month: 14, kg: 10.7 },
-  { month: 15, kg: 11.0 }
-];
+const dutchBoyGrowthAnchorMonths = [0.5, 2, 4, 6, 9, 12, 15];
+const dutchBoyGrowthAnchorKg = [3.75, 5.02, 6.487, 7.63, 8.974, 10.07, 10.99];
 const dateColorMap = {};
 
 function defaultSelectedDates(days) {
@@ -730,14 +714,81 @@ function growthSdGramsAtMonth(month) {
   return 320 + month * 35;
 }
 
+function pchipSlopes(x, y) {
+  const n = x.length;
+  if (n < 2) return [];
+  const h = [];
+  const delta = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    h.push(x[i + 1] - x[i]);
+    delta.push((y[i + 1] - y[i]) / h[i]);
+  }
+
+  const d = new Array(n).fill(0);
+  d[0] = ((2 * h[0] + h[1]) * delta[0] - h[0] * delta[1]) / (h[0] + h[1]);
+  if (Math.sign(d[0]) !== Math.sign(delta[0])) d[0] = 0;
+  else if (Math.sign(delta[0]) !== Math.sign(delta[1]) && Math.abs(d[0]) > Math.abs(3 * delta[0])) d[0] = 3 * delta[0];
+
+  for (let i = 1; i < n - 1; i += 1) {
+    if (delta[i - 1] === 0 || delta[i] === 0 || Math.sign(delta[i - 1]) !== Math.sign(delta[i])) {
+      d[i] = 0;
+      continue;
+    }
+    const w1 = 2 * h[i] + h[i - 1];
+    const w2 = h[i] + 2 * h[i - 1];
+    d[i] = (w1 + w2) / ((w1 / delta[i - 1]) + (w2 / delta[i]));
+  }
+
+  const last = n - 1;
+  d[last] = ((2 * h[last - 1] + h[last - 2]) * delta[last - 1] - h[last - 1] * delta[last - 2]) / (h[last - 1] + h[last - 2]);
+  if (Math.sign(d[last]) !== Math.sign(delta[last - 1])) d[last] = 0;
+  else if (Math.sign(delta[last - 1]) !== Math.sign(delta[last - 2]) && Math.abs(d[last]) > Math.abs(3 * delta[last - 1])) d[last] = 3 * delta[last - 1];
+
+  return d;
+}
+
+function pchipInterpolate(x, y, xq) {
+  const n = x.length;
+  if (!n) return [];
+  if (n === 1) return xq.map(() => y[0]);
+  const d = pchipSlopes(x, y);
+
+  return xq.map((qx) => {
+    if (qx <= x[0]) return y[0];
+    if (qx >= x[n - 1]) return y[n - 1];
+
+    let i = 0;
+    while (i < n - 2 && qx > x[i + 1]) i += 1;
+    const h = x[i + 1] - x[i];
+    const t = (qx - x[i]) / h;
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    const h00 = 2 * t3 - 3 * t2 + 1;
+    const h10 = t3 - 2 * t2 + t;
+    const h01 = -2 * t3 + 3 * t2;
+    const h11 = t3 - t2;
+
+    return (h00 * y[i]) + (h10 * h * d[i]) + (h01 * y[i + 1]) + (h11 * h * d[i + 1]);
+  });
+}
+
 function growthCurveSeries() {
   const birthDateIso = weightPoints.length ? weightPoints[0].date : referenceBirthDateIso;
-  const meanPoints = dutchBoyGrowthMeanKgByMonth.map((entry) => {
-    const dt = addMonthsUtc(birthDateIso, entry.month);
+  const minMonth = dutchBoyGrowthAnchorMonths[0];
+  const maxMonth = dutchBoyGrowthAnchorMonths[dutchBoyGrowthAnchorMonths.length - 1];
+  const sampleMonths = Array.from({ length: 220 }, (_, idx) => {
+    const ratio = idx / 219;
+    return minMonth + ((maxMonth - minMonth) * ratio);
+  });
+  const smoothKg = pchipInterpolate(dutchBoyGrowthAnchorMonths, dutchBoyGrowthAnchorKg, sampleMonths);
+
+  const meanPoints = sampleMonths.map((month, idx) => {
+    const dt = addMonthsUtc(birthDateIso, month);
     return {
       x: dateToOrdinalUtc(dt),
-      y: Math.round(entry.kg * 1000),
-      month: entry.month
+      y: Math.round(smoothKg[idx] * 1000),
+      month
     };
   });
 
@@ -770,12 +821,13 @@ function weightDatasets() {
   const growth = growthCurveSeries();
   return [
     { label: '+2.5 SDS', data: growth.up2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 0 },
-    { label: '+2 SDS', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: '-1' },
-    { label: '+1 SDS', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: '-1' },
-    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: 'rgba(22,163,74,1)', backgroundColor: 'rgba(22,163,74,0.24)', tension: 0.22, borderWidth: 2, pointRadius: 0 },
-    { label: '-1 SDS', data: growth.low1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: '-1' },
-    { label: '-2 SDS', data: growth.low2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: '-1' },
-    { label: '-2.5 SDS', data: growth.low2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: '-1' },
+    { label: '+2 SDS', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: 0 },
+    { label: '+1 SDS', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: 1 },
+    { label: 'Mean top band', data: growth.mean, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: 2 },
+    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: 'rgba(22,163,74,1)', backgroundColor: 'rgba(22,163,74,0)', tension: 0.22, borderWidth: 2, pointRadius: 0 },
+    { label: '-1 SDS', data: growth.low1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.24)', pointRadius: 0, borderWidth: 0, fill: 4 },
+    { label: '-2 SDS', data: growth.low2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.18)', pointRadius: 0, borderWidth: 0, fill: 5 },
+    { label: '-2.5 SDS', data: growth.low2_5, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.12)', pointRadius: 0, borderWidth: 0, fill: 6 },
     {
       label: i18n.weight_dataset,
       data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
@@ -861,6 +913,11 @@ function modalChartConfig(chartId) {
         y: { title: { display: true, text: i18n.weight_y } }
       },
       plugins: {
+        legend: {
+          labels: {
+            filter: (item) => [i18n.weight_dataset, i18n.weight_growth_curve || 'Groeicurve'].includes(item.text)
+          }
+        },
         tooltip: {
           callbacks: {
             title: (items) => items[0]?.raw?.full_label || ''
