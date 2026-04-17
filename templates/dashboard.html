@@ -6,10 +6,13 @@
   <title>{{ i18n.app_title }}</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
-    :root { --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --shadow:0 10px 28px rgba(0,0,0,.06); --radius:16px; }
+    :root { --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --shadow:0 10px 28px rgba(0,0,0,.06); --radius:16px; --bg-start:#f7f8ff; --bg-end:#eef2ff; --card-strong:#fff; --btn-muted-bg:#fff; --btn-muted-text:#1e293b; --modal:#fff; }
+    body[data-theme="dark"] { --card:#0f172a; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#3b82f6; --shadow:0 16px 30px rgba(2,6,23,.45); --bg-start:#020617; --bg-end:#0b1222; --card-strong:#111827; --btn-muted-bg:#0b1222; --btn-muted-text:#e2e8f0; --modal:#0f172a; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f7f8ff 0%, #eef2ff 100%); color: var(--text); }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%); color: var(--text); }
     .container { max-width: 1160px; margin: 0 auto; padding: 18px; }
     .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .title h1 { margin: 0; font-size: 1.6rem; }
@@ -23,7 +26,7 @@
     .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--radius); padding: 14px; }
     .card h2 { margin: 0 0 10px; font-size: 1.1rem; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-    .stat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .stat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--card-strong); }
     .stat .label { color: var(--muted); font-size: .82rem; }
     .stat .value { font-size: 1.7rem; font-weight: 700; }
     .flash { margin: 0 0 10px; border-radius: 12px; padding: 10px 12px; font-size: .9rem; }
@@ -32,7 +35,7 @@
     button, input, textarea, select { font: inherit; }
     button { border: 0; border-radius: 12px; padding: 10px 12px; cursor: pointer; font-weight: 600; }
     .btn { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; }
-    .btn-muted { border: 1px solid #cbd5e1; background: #fff; color: #1e293b; }
+    .btn-muted { border: 1px solid #cbd5e1; background: var(--btn-muted-bg); color: var(--btn-muted-text); }
     .btn-danger { border: 1px solid #fecaca; background: #fee2e2; color: #b91c1c; }
     form { display: grid; gap: 10px; }
     .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -44,9 +47,10 @@
     .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar .inline { display:flex; align-items:center; gap:6px; }
     .toolbar .spacer { margin-left: auto; }
-    .icon-btn { border: 1px solid #cbd5e1; background: #fff; color: #1e293b; padding: 8px 10px; border-radius: 10px; }
+    .toolbar .zoom-controls { display:flex; gap:6px; align-items:center; flex-wrap: wrap; }
+    .icon-btn { border: 1px solid #cbd5e1; background: var(--btn-muted-bg); color: var(--btn-muted-text); padding: 8px 10px; border-radius: 10px; }
     .checkboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; background: #fff; cursor: pointer; }
+    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; background: var(--card-strong); cursor: pointer; color: var(--text); }
     .day-chip.selected { border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.08); }
     .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .chart-wrap { position: relative; height: 320px; }
@@ -65,15 +69,16 @@
     .tag-pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 6px 10px; font-size: .8rem; display: inline-flex; align-items: center; gap: 6px; }
     .tag-pill input { width: 14px; height: 14px; margin: 0; }
     .entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-    .meta-chip { font-size: .75rem; color: #334155; background: #f1f5f9; border-radius: 999px; padding: 3px 8px; }
-    .toggle-pill { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cbd5e1; border-radius: 999px; padding: 6px 10px; background: #fff; }
+    .meta-chip { font-size: .75rem; color: var(--text); background: color-mix(in oklab, var(--line) 65%, transparent); border-radius: 999px; padding: 3px 8px; }
+    .toggle-pill { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cbd5e1; border-radius: 999px; padding: 6px 10px; background: var(--card-strong); }
     .toggle-pill input { width: 34px; height: 18px; accent-color: #2563eb; }
     .insights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
     .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; padding: 10px 14px; border-radius: 10px; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; box-shadow: var(--shadow); display: none; }
     .toast.show { display: block; }
     .chart-modal { position: fixed; inset: 0; background: rgba(15,23,42,.8); display: none; align-items: center; justify-content: center; z-index: 50; padding: 3vh 3vw; }
     .chart-modal.open { display: flex; }
-    .chart-modal-content { width: 90vw; height: 90vh; background: #fff; border-radius: 14px; padding: 12px; position: relative; }
+    .chart-modal-content { width: 90vw; height: 90vh; background: var(--modal); border-radius: 14px; padding: 12px; position: relative; }
+    .focus-target:focus { outline: 2px solid var(--accent); outline-offset: 4px; }
     .chart-modal-content .chart-wrap { height: calc(90vh - 80px); }
     .modal-close { position: absolute; right: 10px; top: 10px; }
     @media (max-width: 920px) {
@@ -110,11 +115,13 @@
       </form>
       {% if logged_in %}
         <a href="#logSection" class="quick-log-link"><button type="button" class="btn">{{ i18n.quick_log }}</button></a>
+        <button type="button" class="btn-muted" id="themeToggle">{{ i18n.dark_mode }}</button>
         <span class="pill">{{ i18n.edit_mode }}</span>
         <form method="post" action="{{ url_for('logout', lang=lang) }}" style="margin:0">
           <button type="submit" class="btn-muted">{{ i18n.logout }}</button>
         </form>
       {% else %}
+        <button type="button" class="btn-muted" id="themeToggle">{{ i18n.dark_mode }}</button>
         <a href="{{ url_for('login', lang=lang) }}" style="text-decoration:none"><button type="button" class="btn-muted">{{ i18n.login }}</button></a>
       {% endif %}
     </div>
@@ -156,7 +163,7 @@
       <div class="chart-wrap"><canvas id="totalsChart"></canvas></div>
     </div>
 
-    <div class="card">
+    <div class="card focus-target" id="intakeSection" tabindex="-1">
       <h2>{{ i18n.intake_time_title }}</h2>
       <div class="toolbar">
         <div class="inline">
@@ -164,6 +171,13 @@
           <select id="intakeView">
             <option value="cumulative">{{ i18n.intake_cumulative }}</option>
             <option value="individual">{{ i18n.intake_individual }}</option>
+          </select>
+        </div>
+        <div class="inline">
+          <label for="intakeType" style="margin:0">{{ i18n.chart_style }}</label>
+          <select id="intakeType">
+            <option value="line">{{ i18n.line }}</option>
+            <option value="bar">{{ i18n.bar }}</option>
           </select>
         </div>
         <button class="icon-btn spacer" type="button" data-fullscreen-chart="intakeChart">{{ i18n.fullscreen }}</button>
@@ -179,6 +193,11 @@
     <div class="card">
       <h2>{{ i18n.weight_trend_title }}</h2>
       <div class="toolbar">
+        <div class="zoom-controls">
+          <button class="icon-btn btn-xs" type="button" id="weightZoomOut" aria-label="{{ i18n.zoom_out }}">{{ i18n.zoom_out }}</button>
+          <button class="icon-btn btn-xs" type="button" id="weightZoomIn" aria-label="{{ i18n.zoom_in }}">{{ i18n.zoom_in }}</button>
+          <button class="icon-btn btn-xs" type="button" id="weightZoomReset">{{ i18n.zoom_reset }}</button>
+        </div>
         <button class="icon-btn spacer" type="button" data-fullscreen-chart="weightChart">{{ i18n.fullscreen }}</button>
       </div>
       <div class="chart-wrap"><canvas id="weightChart"></canvas></div>
@@ -497,12 +516,16 @@ detailByDay = initialNormalized.detailByDay;
 let selectedDates = defaultSelectedDates(detailByDay);
 let intakeView = 'cumulative';
 let totalsType = 'bar';
+let intakeType = 'line';
 
 const dayToggles = document.getElementById('dayToggles');
 const intakeViewSelect = document.getElementById('intakeView');
+const intakeTypeSelect = document.getElementById('intakeType');
 const totalsTypeSelect = document.getElementById('totalsType');
 const dayBoundaryModeInput = document.getElementById('dayBoundaryMode');
 const dayBoundaryHint = document.getElementById('dayBoundaryHint');
+const intakeSection = document.getElementById('intakeSection');
+const themeToggle = document.getElementById('themeToggle');
 const addEntryForm = document.getElementById('addEntryForm');
 const toast = document.getElementById('toast');
 const chartModal = document.getElementById('chartModal');
@@ -510,12 +533,19 @@ const chartModalClose = document.getElementById('chartModalClose');
 const chartModalTitle = document.getElementById('chartModalTitle');
 const entriesList = document.getElementById('entriesList');
 const weightEntriesList = document.getElementById('weightEntriesList');
+const weightZoomOutBtn = document.getElementById('weightZoomOut');
+const weightZoomInBtn = document.getElementById('weightZoomIn');
+const weightZoomResetBtn = document.getElementById('weightZoomReset');
 const updateEntryBaseUrl = "{{ url_for('update_entry', entry_id=0, lang=lang) }}";
 const deleteEntryBaseUrl = "{{ url_for('delete_entry', entry_id=0, lang=lang) }}";
 const updateWeightBaseUrl = "{{ url_for('update_weight', weight_id=0, lang=lang) }}";
 const deleteWeightBaseUrl = "{{ url_for('delete_weight', weight_id=0, lang=lang) }}";
 const submittingForms = new WeakSet();
 let liveSinceFeedInterval = null;
+
+if (window.ChartZoom) {
+  Chart.register(window.ChartZoom);
+}
 
 function withId(baseUrl, id) {
   return baseUrl.replace('/0?', `/${id}?`);
@@ -676,9 +706,11 @@ function intakeDatasets() {
       data,
       borderColor: getColorForDate(day.date),
       backgroundColor: getColorForDate(day.date),
-      tension: 0.25,
-      borderWidth: 2,
-      pointRadius: 4,
+      tension: intakeType === 'bar' ? 0 : 0.25,
+      borderWidth: intakeType === 'bar' ? 1 : 2,
+      pointRadius: intakeType === 'bar' ? 0 : 4,
+      barThickness: intakeType === 'bar' ? 18 : undefined,
+      maxBarThickness: intakeType === 'bar' ? 22 : undefined,
       fill: false,
       spanGaps: true
     };
@@ -1053,6 +1085,30 @@ const weightChart = new Chart(document.getElementById('weightChart'), {
         callbacks: {
           title: (items) => items[0]?.raw?.full_label || ''
         }
+      },
+      zoom: {
+        limits: {
+          x: { minRange: 2 },
+          y: { minRange: 250 }
+        },
+        pan: {
+          enabled: true,
+          mode: 'xy',
+          threshold: 8
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            speed: 0.08
+          },
+          pinch: {
+            enabled: true
+          },
+          drag: {
+            enabled: false
+          },
+          mode: 'xy'
+        }
       }
     },
     layout: {
@@ -1063,6 +1119,7 @@ const weightChart = new Chart(document.getElementById('weightChart'), {
 });
 
 function renderIntakeChart() {
+  intakeChart.config.type = intakeType;
   intakeChart.data.datasets = intakeDatasets();
   const { min, max } = intakeXBounds();
   intakeChart.options.scales.x.min = min;
@@ -1085,6 +1142,17 @@ function renderWeightChart() {
   weightChart.options.scales.x.min = minX;
   weightChart.options.scales.x.max = maxX;
   weightChart.update();
+}
+
+function zoomWeightChart(direction) {
+  if (!weightChart?.zoom) return;
+  const factor = direction === 'in' ? 1.15 : 0.87;
+  weightChart.zoom({ x: factor, y: factor });
+}
+
+function resetWeightChartZoom() {
+  if (!weightChart?.resetZoom) return;
+  weightChart.resetZoom();
 }
 
 function updateStats(days, entries) {
@@ -1148,10 +1216,16 @@ function applyDashboardData(data) {
   const normalized = normalizeDashboardData(useShiftedDayBoundary);
   dailyTotals = normalized.dailyTotals;
   detailByDay = normalized.detailByDay;
-  selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
-  if (!selectedDates.size) {
-    selectedDates = defaultSelectedDates(detailByDay);
+  const forcedFocusDay = applyDashboardData.focusIntakeDay;
+  if (forcedFocusDay && detailByDay.some((d) => d.date === forcedFocusDay)) {
+    selectedDates = new Set([forcedFocusDay]);
+  } else {
+    selectedDates = new Set(detailByDay.map(d => d.date).filter(date => selectedDates.has(date)));
+    if (!selectedDates.size) {
+      selectedDates = defaultSelectedDates(detailByDay);
+    }
   }
+  applyDashboardData.focusIntakeDay = null;
   totalsChart.data.labels = dailyTotals.map(d => d.label);
   totalsChart.data.datasets[0].data = dailyTotals.map(d => d.total);
   buildDayToggles();
@@ -1163,6 +1237,38 @@ function applyDashboardData(data) {
   updateStats(normalized.days, data.entries);
   updateInsights();
   bindAsyncForms();
+}
+
+function ddMmToIsoCurrentYear(ddMm) {
+  const parts = String(ddMm || '').split('-');
+  if (parts.length !== 2) return null;
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  if (!Number.isFinite(day) || !Number.isFinite(month)) return null;
+  const year = new Date().getFullYear();
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    candidate.getUTCFullYear() !== year
+    || candidate.getUTCMonth() + 1 !== month
+    || candidate.getUTCDate() !== day
+  ) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function intakeDayFromEntryInputs(ddMm, hhMm) {
+  const isoDate = ddMmToIsoCurrentYear(ddMm);
+  if (!isoDate) return null;
+  const minutes = parseMinutes(hhMm);
+  if (useShiftedDayBoundary && minutes < dayStartMinutes) {
+    return shiftIsoDateByDays(isoDate, -1);
+  }
+  return isoDate;
+}
+
+function focusIntakeChartSection() {
+  if (!intakeSection) return;
+  intakeSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  intakeSection.focus({ preventScroll: true });
 }
 
 async function handleAsyncSubmit(event) {
@@ -1177,6 +1283,12 @@ async function handleAsyncSubmit(event) {
     submitButton.textContent = i18n.saving || originalSubmitText;
   }
   try {
+    let focusIntakeDay = null;
+    if (form.id === 'addEntryForm') {
+      const entryDateValue = form.querySelector('[name="entry_date"]')?.value;
+      const feedTimeValue = form.querySelector('[name="feed_time"]')?.value;
+      focusIntakeDay = intakeDayFromEntryInputs(entryDateValue, feedTimeValue);
+    }
     const response = await fetch(form.action, {
       method: 'POST',
       body: new FormData(form),
@@ -1190,11 +1302,13 @@ async function handleAsyncSubmit(event) {
     }
     const payload = await response.json();
     if (!payload.success || !payload.data) return;
+    applyDashboardData.focusIntakeDay = focusIntakeDay;
     applyDashboardData(payload.data);
     if (payload.message) showToast(payload.message);
     if (form.id === 'addEntryForm') {
       form.reset();
       setNowAsLocalTime();
+      focusIntakeChartSection();
     }
   } catch (error) {
     console.error(error);
@@ -1255,10 +1369,36 @@ function bindAsyncForms() {
   });
 }
 
+function applyTheme(theme) {
+  const selected = theme === 'dark' ? 'dark' : 'light';
+  document.body.setAttribute('data-theme', selected);
+  if (themeToggle) {
+    themeToggle.textContent = selected === 'dark' ? i18n.light_mode : i18n.dark_mode;
+  }
+  localStorage.setItem('babyDashboardTheme', selected);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('babyDashboardTheme');
+  if (saved === 'dark' || saved === 'light') {
+    applyTheme(saved);
+    return;
+  }
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(prefersDark ? 'dark' : 'light');
+}
+
 intakeViewSelect.addEventListener('change', (ev) => {
   intakeView = ev.target.value;
   renderIntakeChart();
 });
+
+if (intakeTypeSelect) {
+  intakeTypeSelect.addEventListener('change', (ev) => {
+    intakeType = ev.target.value;
+    renderIntakeChart();
+  });
+}
 
 totalsTypeSelect.addEventListener('change', (ev) => {
   totalsType = ev.target.value;
@@ -1286,6 +1426,7 @@ if (dayBoundaryModeInput) {
 }
 
 buildDayToggles();
+initTheme();
 updateDayBoundaryHint();
 renderIntakeChart();
 renderTotalsChart();
@@ -1312,6 +1453,21 @@ window.addEventListener('resize', () => {
   }
 });
 startLiveSinceFeedTicker();
+if (themeToggle) {
+  themeToggle.addEventListener('click', () => {
+    const currentTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+}
+if (weightZoomInBtn) {
+  weightZoomInBtn.addEventListener('click', () => zoomWeightChart('in'));
+}
+if (weightZoomOutBtn) {
+  weightZoomOutBtn.addEventListener('click', () => zoomWeightChart('out'));
+}
+if (weightZoomResetBtn) {
+  weightZoomResetBtn.addEventListener('click', resetWeightChartZoom);
+}
 </script>
 </body>
 </html>
