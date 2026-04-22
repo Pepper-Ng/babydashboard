@@ -8,96 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
-  <style>
-    :root { --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#2563eb; --shadow:0 10px 28px rgba(0,0,0,.06); --radius:16px; --bg-start:#f7f8ff; --bg-end:#eef2ff; --card-strong:#fff; --btn-muted-bg:#fff; --btn-muted-text:#1e293b; --modal:#fff; }
-    body[data-theme="dark"] { --card:#0f172a; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#3b82f6; --shadow:0 16px 30px rgba(2,6,23,.45); --bg-start:#020617; --bg-end:#0b1222; --card-strong:#111827; --btn-muted-bg:#0b1222; --btn-muted-text:#e2e8f0; --modal:#0f172a; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%); color: var(--text); }
-    .container { max-width: 1160px; margin: 0 auto; padding: 18px; }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-    .title h1 { margin: 0; font-size: 1.6rem; }
-    .title p { margin: 4px 0 0; color: var(--muted); }
-    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .lang-form { margin: 0; }
-    .lang-select { min-width: 145px; padding: 8px 10px; }
-    .pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 7px 12px; font-size: .85rem; }
-    .quick-log-link { text-decoration: none; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--radius); padding: 14px; }
-    .card h2 { margin: 0 0 10px; font-size: 1.1rem; }
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-    .stat { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--card-strong); }
-    .stat .label { color: var(--muted); font-size: .82rem; }
-    .stat .value { font-size: 1.7rem; font-weight: 700; }
-    .flash { margin: 0 0 10px; border-radius: 12px; padding: 10px 12px; font-size: .9rem; }
-    .success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-    .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    button, input, textarea, select { font: inherit; }
-    button { border: 0; border-radius: 12px; padding: 10px 12px; cursor: pointer; font-weight: 600; }
-    .btn { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: #fff; }
-    .btn-muted { border: 1px solid #cbd5e1; background: var(--btn-muted-bg); color: var(--btn-muted-text); }
-    .btn-danger { border: 1px solid #fecaca; background: #fee2e2; color: #b91c1c; }
-    form { display: grid; gap: 10px; }
-    .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .row2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    label { display: block; margin-bottom: 5px; font-size: .82rem; color: var(--muted); }
-    input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
-    textarea { min-height: 56px; resize: vertical; }
-    .muted { color: var(--muted); font-size: .88rem; }
-    .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
-    .toolbar .inline { display:flex; align-items:center; gap:6px; }
-    .toolbar .spacer { margin-left: auto; }
-    .toolbar .zoom-controls { display:flex; gap:6px; align-items:center; flex-wrap: wrap; }
-    .icon-btn { border: 1px solid #cbd5e1; background: var(--btn-muted-bg); color: var(--btn-muted-text); padding: 8px 10px; border-radius: 10px; }
-    .checkboxes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-    .day-chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: .85rem; white-space: nowrap; background: var(--card-strong); cursor: pointer; color: var(--text); }
-    .day-chip.selected { border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.08); }
-    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-    .chart-wrap { position: relative; height: 320px; }
-    .entries { max-height: 410px; overflow: auto; display: grid; gap: 8px; }
-    .entry { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; justify-content: space-between; gap: 8px; }
-    .entry strong { display: block; font-size: .93rem; }
-    .entry small { color: var(--muted); }
-    .entry-actions { display: flex; gap: 6px; align-items: center; }
-    .entry-edit-form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); display: none; }
-    .entry-edit-form.active { display: grid; }
-    .entry-edit-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: end; }
-    .entry-edit-grid .full { grid-column: 1 / -1; }
-    .btn-xs { padding: 7px 10px; border-radius: 10px; font-size: .8rem; }
-    .quick-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-    .tag-options { display: flex; flex-wrap: wrap; gap: 8px; }
-    .tag-pill { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; border-radius: 999px; padding: 6px 10px; font-size: .8rem; display: inline-flex; align-items: center; gap: 6px; }
-    .tag-pill input { width: 14px; height: 14px; margin: 0; }
-    .entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-    .meta-chip { font-size: .75rem; color: var(--text); background: color-mix(in oklab, var(--line) 65%, transparent); border-radius: 999px; padding: 3px 8px; }
-    .toggle-pill { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #cbd5e1; border-radius: 999px; padding: 6px 10px; background: var(--card-strong); }
-    .toggle-pill input { width: 34px; height: 18px; accent-color: #2563eb; }
-    .insights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-    .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; padding: 10px 14px; border-radius: 10px; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; box-shadow: var(--shadow); display: none; }
-    .toast.show { display: block; }
-    .chart-modal { position: fixed; inset: 0; background: rgba(15,23,42,.8); display: none; align-items: center; justify-content: center; z-index: 50; padding: 3vh 3vw; }
-    .chart-modal.open { display: flex; }
-    .chart-modal-content { width: 90vw; height: 90vh; background: var(--modal); border-radius: 14px; padding: 12px; position: relative; }
-    .focus-target:focus { outline: 2px solid var(--accent); outline-offset: 4px; }
-    .chart-modal-content .chart-wrap { height: calc(90vh - 80px); }
-    .modal-close { position: absolute; right: 10px; top: 10px; }
-    @media (max-width: 920px) {
-      .grid, .row3, .row2 { grid-template-columns: 1fr; }
-      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-      .stat { padding: 10px; }
-      .stat .label { font-size: .74rem; }
-      .stat .value { font-size: 1.25rem; }
-      .actions { width: 100%; }
-      .actions .quick-log-link { flex: 1 1 100%; }
-      .actions .quick-log-link button { width: 100%; }
-      .entry-edit-grid { grid-template-columns: 1fr; }
-      .chart-wrap { height: 280px; }
-      .insights { grid-template-columns: 1fr 1fr; }
-      .tag-options { display: grid; grid-template-columns: 1fr; gap: 6px; }
-      .tag-pill { width: 100%; justify-content: flex-start; }
-      .chart-modal-content { width: 94vw; height: 92vh; }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
 <div class="container">
@@ -117,12 +28,12 @@
         <a href="#logSection" class="quick-log-link"><button type="button" class="btn">{{ i18n.quick_log }}</button></a>
         <button type="button" class="btn-muted" id="themeToggle">{{ i18n.dark_mode }}</button>
         <span class="pill">{{ i18n.edit_mode }}</span>
-        <form method="post" action="{{ url_for('logout', lang=lang) }}" style="margin:0">
+        <form method="post" action="{{ url_for('logout', lang=lang) }}" class="m-0">
           <button type="submit" class="btn-muted">{{ i18n.logout }}</button>
         </form>
       {% else %}
         <button type="button" class="btn-muted" id="themeToggle">{{ i18n.dark_mode }}</button>
-        <a href="{{ url_for('login', lang=lang) }}" style="text-decoration:none"><button type="button" class="btn-muted">{{ i18n.login }}</button></a>
+        <a href="{{ url_for('login', lang=lang) }}" class="no-underline"><button type="button" class="btn-muted">{{ i18n.login }}</button></a>
       {% endif %}
     </div>
   </div>
@@ -148,13 +59,13 @@
       <h2>{{ i18n.daily_totals_title }}</h2>
       <div class="toolbar">
         <div class="inline">
-          <label for="totalsType" style="margin:0">{{ i18n.chart_style }}</label>
+          <label for="totalsType" class="m-0">{{ i18n.chart_style }}</label>
           <select id="totalsType">
             <option value="bar">{{ i18n.bar }}</option>
             <option value="line">{{ i18n.line }}</option>
           </select>
         </div>
-        <label class="toggle-pill" style="margin:0">
+        <label class="toggle-pill m-0">
           <input id="dayBoundaryMode" type="checkbox" checked>
           <span>{{ i18n.use_shifted_day }}</span>
         </label>
@@ -167,14 +78,14 @@
       <h2>{{ i18n.intake_time_title }}</h2>
       <div class="toolbar">
         <div class="inline">
-          <label for="intakeView" style="margin:0">{{ i18n.intake_mode }}</label>
+          <label for="intakeView" class="m-0">{{ i18n.intake_mode }}</label>
           <select id="intakeView">
             <option value="cumulative">{{ i18n.intake_cumulative }}</option>
             <option value="individual">{{ i18n.intake_individual }}</option>
           </select>
         </div>
         <div class="inline">
-          <label for="intakeType" style="margin:0">{{ i18n.chart_style }}</label>
+          <label for="intakeType" class="m-0">{{ i18n.chart_style }}</label>
           <select id="intakeType">
             <option value="line">{{ i18n.line }}</option>
             <option value="bar">{{ i18n.bar }}</option>
@@ -189,7 +100,7 @@
     </div>
   </div>
 
-  <div class="grid" style="margin-top:14px;">
+  <div class="grid mt-14">
     <div class="card">
       <h2>{{ i18n.weight_trend_title }}</h2>
       <div class="toolbar">
@@ -245,7 +156,7 @@
         <button class="btn" type="submit">{{ i18n.save_intake }}</button>
       </form>
 
-      <h2 style="margin-top:18px">{{ i18n.add_weight_title }}</h2>
+      <h2 class="mt-18">{{ i18n.add_weight_title }}</h2>
       <form method="post" action="{{ url_for('add_weight', lang=lang) }}">
         <div class="row2">
           <div>
@@ -265,12 +176,12 @@
       </form>
       {% else %}
         <p class="muted">{{ i18n.readonly_message }}</p>
-        <a href="{{ url_for('login', lang=lang) }}" style="text-decoration:none"><button class="btn" type="button">{{ i18n.login_to_edit }}</button></a>
+        <a href="{{ url_for('login', lang=lang) }}" class="no-underline"><button class="btn" type="button">{{ i18n.login_to_edit }}</button></a>
       {% endif %}
     </div>
   </div>
 
-  <div class="card" style="margin-top:14px">
+  <div class="card mt-14">
     <h2>{{ i18n.recent_entries }}</h2>
     <div class="entries" id="entriesList">
       {% for e in entries %}
@@ -324,7 +235,7 @@
         {% if logged_in %}
         <div class="entry-actions">
           <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-{{ e.id }}')">{{ i18n.edit }}</button>
-          <form method="post" action="{{ url_for('delete_entry', entry_id=e.id, lang=lang) }}" class="js-async-form" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
+          <form method="post" action="{{ url_for('delete_entry', entry_id=e.id, lang=lang) }}" class="js-async-form m-0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
             <button class="btn-danger btn-xs" type="submit">{{ i18n.delete }}</button>
           </form>
         </div>
@@ -334,7 +245,7 @@
     </div>
   </div>
 
-  <div class="card" style="margin-top:14px">
+  <div class="card mt-14">
     <h2>{{ i18n.recent_weight_entries }}</h2>
     <div class="entries" id="weightEntriesList">
       {% for w in weight_entries %}
@@ -368,7 +279,7 @@
         {% if logged_in %}
         <div class="entry-actions">
           <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-{{ w.id }}')">{{ i18n.edit }}</button>
-          <form method="post" action="{{ url_for('delete_weight', weight_id=w.id, lang=lang) }}" class="js-async-form" style="margin:0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
+          <form method="post" action="{{ url_for('delete_weight', weight_id=w.id, lang=lang) }}" class="js-async-form m-0" onsubmit="return confirm('{{ i18n.delete_confirm }}');">
             <button class="btn-danger btn-xs" type="submit">{{ i18n.delete }}</button>
           </form>
         </div>
@@ -642,7 +553,7 @@ function renderEntriesList() {
         ${loggedIn ? `
         <div class="entry-actions">
           <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('entry-form-${e.id}')">${escapeHtml(i18n.edit)}</button>
-          <form method="post" action="${withId(deleteEntryBaseUrl, e.id)}" class="js-async-form" style="margin:0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
+          <form method="post" action="${withId(deleteEntryBaseUrl, e.id)}" class="js-async-form m-0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
             <button class="btn-danger btn-xs" type="submit">${escapeHtml(i18n.delete)}</button>
           </form>
         </div>` : ''}
@@ -682,7 +593,7 @@ function renderWeightEntriesList() {
         ${loggedIn ? `
         <div class="entry-actions">
           <button class="btn-muted btn-xs" type="button" onclick="toggleEditForm('weight-form-${w.id}')">${escapeHtml(i18n.edit)}</button>
-          <form method="post" action="${withId(deleteWeightBaseUrl, w.id)}" class="js-async-form" style="margin:0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
+          <form method="post" action="${withId(deleteWeightBaseUrl, w.id)}" class="js-async-form m-0" onsubmit="return confirm('${escapeHtml(i18n.delete_confirm)}');">
             <button class="btn-danger btn-xs" type="submit">${escapeHtml(i18n.delete)}</button>
           </form>
         </div>` : ''}
