@@ -131,34 +131,41 @@ textarea { min-height: 56px; resize: vertical; }
 }
 
 /* Login page styles */
-.box { max-width: 420px; margin: 10vh auto; background: var(--card); border: 1px solid var(--line); padding: 24px; border-radius: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
-h1 { margin-top: 0; }
-input, button, select { width: 100%; padding: 12px 14px; margin-top: 10px; border-radius: 12px; border: 1px solid var(--line); font: inherit; }
-button { background: var(--accent); color: #fff; border: 0; font-weight: 700; cursor: pointer; }
-.muted { color: var(--muted); font-size: 14px; }
-.error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 12px; margin: 10px 0; }
-a { color: var(--accent); text-decoration: none; }
+.login-page .box { max-width: 420px; margin: 10vh auto; background: var(--card); border: 1px solid var(--line); padding: 24px; border-radius: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.08); }
+.login-page h1 { margin-top: 0; }
+.login-page input,
+.login-page button,
+.login-page select { width: 100%; padding: 12px 14px; margin-top: 10px; border-radius: 12px; border: 1px solid var(--line); font: inherit; }
+.login-page button { background: var(--accent); color: #fff; border: 0; font-weight: 700; cursor: pointer; }
+.login-page .muted { color: var(--muted); font-size: 14px; }
+.login-page .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 12px; margin: 10px 0; }
+.login-page a { color: var(--accent); text-decoration: none; }
 
 /* Dark mode for login page */
-body[data-theme="dark"] .box {
+body[data-theme="dark"] .login-page .box,
+body.login-page[data-theme="dark"] .box {
   background: var(--card);
   border: 1px solid var(--line);
   box-shadow: 0 16px 30px rgba(2,6,23,.45);
 }
-body[data-theme="dark"] input,
-body[data-theme="dark"] select,
-body[data-theme="dark"] textarea {
+body[data-theme="dark"] .login-page input,
+body[data-theme="dark"] .login-page select,
+body[data-theme="dark"] .login-page textarea,
+body.login-page[data-theme="dark"] input,
+body.login-page[data-theme="dark"] select,
+body.login-page[data-theme="dark"] textarea {
   background: #1e293b;
   color: var(--text);
   border: 1px solid var(--line);
 }
-body[data-theme="dark"] button {
+body[data-theme="dark"] .login-page button,
+body.login-page[data-theme="dark"] button {
   background: var(--accent);
   color: #fff;
 }
 
 /* Fix login password field width */
-form input[type="password"] {
+.login-page form input[type="password"] {
   width: 100%;
   box-sizing: border-box;
 }
