@@ -6,7 +6,7 @@
   <title>{{ i18n.login_title }} · {{ i18n.app_title }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
-<body>
+<body class="login-page">
   <div class="box">
     <form method="get" action="{{ url_for('login') }}" class="mb-8">
       <label for="lang">{{ i18n.language }}</label>
