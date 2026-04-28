@@ -142,7 +142,12 @@ def login_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if not session.get("logged_in"):
-            return redirect(url_for("login", next=request.path, lang=get_language()))
+            lang = get_language()
+            next_url = request.full_path.rstrip("?") if request.method == "GET" else url_for("dashboard", lang=lang)
+            login_url = url_for("login", next=next_url, lang=lang)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": False, "message": t("session_expired", lang), "login_url": login_url}), 401
+            return redirect(login_url)
         return func(*args, **kwargs)
 
     return wrapper
@@ -154,6 +159,14 @@ def parse_minutes(value):
         return int(hh) * 60 + int(mm)
     except Exception:
         return 0
+
+
+def is_valid_feed_time(feed_time):
+    try:
+        datetime.strptime(feed_time, "%H:%M")
+    except ValueError:
+        return False
+    return True
 
 
 def shifted_minutes(minutes):
@@ -170,16 +183,16 @@ def intake_day_for(iso_date, feed_time):
     return entry_day.isoformat()
 
 
-def parse_user_date(user_date):
+def parse_user_date(user_date, fallback_year=None):
     try:
         parsed = datetime.strptime(user_date, "%d-%m").date()
-        current_year = date.today().year
+        current_year = fallback_year or date.today().year
         return parsed.replace(year=current_year).isoformat()
     except ValueError:
         return None
 
 
-def parse_weight_date(user_date):
+def parse_weight_date(user_date, fallback_year=None):
     try:
         return datetime.strptime(user_date, "%Y-%m-%d").date().isoformat()
     except ValueError:
@@ -188,7 +201,40 @@ def parse_weight_date(user_date):
         return datetime.strptime(user_date, "%d-%m-%Y").date().isoformat()
     except ValueError:
         pass
-    return parse_user_date(user_date)
+    return parse_user_date(user_date, fallback_year=fallback_year)
+
+
+def timestamp_to_iso_date(timestamp_value):
+    raw_value = (timestamp_value or "").strip()
+    if not raw_value:
+        return None
+    try:
+        return datetime.fromisoformat(raw_value.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        return None
+
+
+def year_from_timestamp(timestamp_value):
+    iso_date = timestamp_to_iso_date(timestamp_value)
+    if not iso_date:
+        return None
+    return int(iso_date[:4])
+
+
+def normalize_stored_date(stored_date, fallback_year=None, fallback_timestamp=None):
+    raw_value = (stored_date or "").strip()
+    if not raw_value:
+        return None
+
+    iso_date = timestamp_to_iso_date(raw_value)
+    if iso_date:
+        return iso_date
+
+    iso_date = parse_weight_date(raw_value, fallback_year=fallback_year)
+    if iso_date:
+        return iso_date
+
+    return None
 
 
 def as_dd_mm(iso_date):
@@ -208,6 +254,13 @@ def date_to_ordinal(iso_date):
 
 def wants_json():
     return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def error_response(message_key, lang, status_code=400):
+    if wants_json():
+        return jsonify({"success": False, "message": t(message_key, lang)}), status_code
+    flash(t(message_key, lang), "error")
+    return redirect(url_for("dashboard", lang=lang))
 
 
 def success_response(message_key, lang):
@@ -239,7 +292,15 @@ def load_dashboard_data():
     intake_by_day = {}
     all_entries = []
     for row in rows:
-        iso_date = row["entry_date"]
+        iso_date = normalize_stored_date(
+            row["entry_date"],
+            fallback_year=year_from_timestamp(row["created_at"]),
+            fallback_timestamp=row["created_at"],
+        )
+        if not iso_date:
+            app.logger.warning("Skipping entry %s with unparseable date %r", row["id"], row["entry_date"])
+            continue
+
         if iso_date not in by_day:
             by_day[iso_date] = {
                 "date": iso_date,
@@ -278,6 +339,8 @@ def load_dashboard_data():
         intake_by_day[intake_day]["total"] += point["amount"]
         all_entries.append(point)
 
+    all_entries = sorted(all_entries, key=lambda point: (point["date"], point["minutes"], point["id"]))
+
     ordered_days = sorted(by_day.values(), key=lambda d: d["date"])
     for day in ordered_days:
         day["points"] = sorted(day["points"], key=lambda p: (p["chart_minutes"], p["id"]))
@@ -288,20 +351,32 @@ def load_dashboard_data():
 
     daily_totals = [{"date": d["date"], "label": d["label"], "total": d["total"]} for d in ordered_days]
 
-    weight_points = [
-        {
-            "id": row["id"],
-            "date": row["measure_date"],
-            "label": as_dd_mm(row["measure_date"]),
-            "full_label": as_dd_mm_yyyy(row["measure_date"]),
-            "day_index": date_to_ordinal(row["measure_date"]),
-            "weight": int(row["weight_grams"]),
-            "note": row["note"] or "",
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        }
-        for row in weights
-    ]
+    weight_points = []
+    for row in weights:
+        iso_date = normalize_stored_date(
+            row["measure_date"],
+            fallback_year=year_from_timestamp(row["created_at"]),
+            fallback_timestamp=row["created_at"],
+        )
+        if not iso_date:
+            app.logger.warning("Skipping weight entry %s with unparseable date %r", row["id"], row["measure_date"])
+            continue
+
+        weight_points.append(
+            {
+                "id": row["id"],
+                "date": iso_date,
+                "label": as_dd_mm(iso_date),
+                "full_label": as_dd_mm_yyyy(iso_date),
+                "day_index": date_to_ordinal(iso_date),
+                "weight": int(row["weight_grams"]),
+                "note": row["note"] or "",
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        )
+
+    weight_points = sorted(weight_points, key=lambda point: (point["date"], point["id"]))
 
     recent_weight_entries = list(
         reversed(
@@ -385,16 +460,13 @@ def add_entry():
 
     iso_date = parse_user_date(date_dd_mm)
     if not iso_date:
-        flash(t("date_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("date_format_error", lang)
 
-    if not feed_time or len(feed_time) != 5 or ":" not in feed_time:
-        flash(t("time_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+    if not is_valid_feed_time(feed_time):
+        return error_response("time_format_error", lang)
 
     if amount_ml is None or amount_ml <= 0:
-        flash(t("intake_amount_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("intake_amount_error", lang)
 
     db = get_db()
     db.execute(
@@ -415,12 +487,10 @@ def add_weight():
 
     iso_date = parse_weight_date(date_dd_mm)
     if not iso_date:
-        flash(t("date_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("weight_date_format_error", lang)
 
     if weight_grams is None or weight_grams <= 0:
-        flash(t("weight_amount_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("weight_amount_error", lang)
 
     db = get_db()
     db.execute(
@@ -451,22 +521,32 @@ def update_entry(entry_id):
     note = (request.form.get("note") or "").strip()
     tags = ",".join([tag.strip() for tag in request.form.getlist("tags") if tag.strip()])
 
-    iso_date = parse_user_date(date_dd_mm)
-    if not iso_date:
-        flash(t("date_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+    db = get_db()
+    existing_entry = db.execute(
+        "SELECT entry_date, created_at FROM entries WHERE id = ?",
+        (entry_id,),
+    ).fetchone()
+    canonical_date = None
+    if existing_entry:
+        canonical_date = normalize_stored_date(
+            existing_entry["entry_date"],
+            fallback_year=year_from_timestamp(existing_entry["created_at"]),
+            fallback_timestamp=existing_entry["created_at"],
+        )
 
-    try:
-        datetime.strptime(feed_time, "%H:%M")
-    except ValueError:
-        flash(t("time_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+    iso_date = parse_user_date(
+        date_dd_mm,
+        fallback_year=int(canonical_date[:4]) if canonical_date else None,
+    )
+    if not iso_date:
+        return error_response("date_format_error", lang)
+
+    if not is_valid_feed_time(feed_time):
+        return error_response("time_format_error", lang)
 
     if amount_ml is None or amount_ml <= 0:
-        flash(t("intake_amount_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("intake_amount_error", lang)
 
-    db = get_db()
     db.execute(
         "UPDATE entries SET entry_date = ?, feed_time = ?, amount_ml = ?, note = ?, tags = ?, updated_at = ? WHERE id = ?",
         (iso_date, feed_time, amount_ml, note, tags, datetime.now(timezone.utc).isoformat(timespec="seconds"), entry_id),
@@ -485,12 +565,10 @@ def update_weight(weight_id):
 
     iso_date = parse_weight_date(date_dd_mm)
     if not iso_date:
-        flash(t("date_format_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("weight_date_format_error", lang)
 
     if weight_grams is None or weight_grams <= 0:
-        flash(t("weight_amount_error", lang), "error")
-        return redirect(url_for("dashboard", lang=lang))
+        return error_response("weight_amount_error", lang)
 
     db = get_db()
     db.execute(
