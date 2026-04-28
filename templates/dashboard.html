@@ -1457,6 +1457,14 @@ function bindAsyncForms() {
   });
 }
 
+function runSafely(fn, label) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`Dashboard init failure in ${label}:`, error);
+  }
+}
+
 function applyTheme(theme) {
   const selected = theme === 'dark' ? 'dark' : 'light';
   document.body.setAttribute('data-theme', selected);
@@ -1516,10 +1524,6 @@ if (dayBoundaryModeInput) {
 buildDayToggles();
 initTheme();
 updateDayBoundaryHint();
-renderIntakeChart();
-renderTotalsChart();
-renderWeightChart();
-updateInsights();
 bindAsyncForms();
 setNowAsLocalTime();
 document.querySelectorAll('.js-quick-add').forEach((btn) => btn.addEventListener('click', () => {
@@ -1557,6 +1561,10 @@ if (weightZoomOutBtn) {
 if (weightZoomResetBtn) {
   weightZoomResetBtn.addEventListener('click', resetWeightChartZoom);
 }
+runSafely(renderIntakeChart, 'renderIntakeChart');
+runSafely(renderTotalsChart, 'renderTotalsChart');
+runSafely(() => renderWeightChart(), 'renderWeightChart');
+runSafely(updateInsights, 'updateInsights');
 </script>
 </body>
 </html>
