@@ -396,26 +396,28 @@ function chartThemeColors() {
 function applyChartTheme(chart) {
   if (!chart?.options) return;
   const theme = chartThemeColors();
-  const scales = chart.options.scales || {};
-  Object.values(scales).forEach((scale) => {
-    if (!scale) return;
-    scale.grid = scale.grid || {};
-    scale.ticks = scale.ticks || {};
-    scale.title = scale.title || {};
-    if (scale.grid.display !== false) scale.grid.color = theme.grid;
-    scale.ticks.color = theme.text;
-    scale.title.color = theme.axis;
-  });
-  chart.options.plugins = chart.options.plugins || {};
-  chart.options.plugins.tooltip = chart.options.plugins.tooltip || {};
-  chart.options.plugins.tooltip.backgroundColor = theme.tooltipBg;
-  chart.options.plugins.tooltip.borderColor = theme.tooltipBorder;
-  chart.options.plugins.tooltip.borderWidth = 1;
-  chart.options.plugins.tooltip.titleColor = theme.tooltipText;
-  chart.options.plugins.tooltip.bodyColor = theme.tooltipText;
-  chart.options.plugins.legend = chart.options.plugins.legend || {};
-  chart.options.plugins.legend.labels = chart.options.plugins.legend.labels || {};
-  chart.options.plugins.legend.labels.color = theme.text;
+  const scales = chart.options.scales;
+  if (scales?.x) {
+    if (scales.x.grid && scales.x.grid.display !== false) scales.x.grid.color = theme.grid;
+    if (scales.x.ticks) scales.x.ticks.color = theme.text;
+    if (scales.x.title) scales.x.title.color = theme.axis;
+  }
+  if (scales?.y) {
+    if (scales.y.grid && scales.y.grid.display !== false) scales.y.grid.color = theme.grid;
+    if (scales.y.ticks) scales.y.ticks.color = theme.text;
+    if (scales.y.title) scales.y.title.color = theme.axis;
+  }
+  const plugins = chart.options.plugins;
+  if (plugins?.tooltip) {
+    plugins.tooltip.backgroundColor = theme.tooltipBg;
+    plugins.tooltip.borderColor = theme.tooltipBorder;
+    plugins.tooltip.borderWidth = 1;
+    plugins.tooltip.titleColor = theme.tooltipText;
+    plugins.tooltip.bodyColor = theme.tooltipText;
+  }
+  if (plugins?.legend?.labels) {
+    plugins.legend.labels.color = theme.text;
+  }
   chart.options.layout = chart.options.layout || {};
   chart.options.layout.padding = chart.options.layout.padding || {};
   if (chart.canvas?.id === 'weightChart' || chart.canvas?.id === 'chartModalCanvas') {
@@ -1457,6 +1459,14 @@ function bindAsyncForms() {
   });
 }
 
+function runSafely(fn, label) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`Dashboard init failure in ${label}:`, error);
+  }
+}
+
 function applyTheme(theme) {
   const selected = theme === 'dark' ? 'dark' : 'light';
   document.body.setAttribute('data-theme', selected);
@@ -1516,10 +1526,6 @@ if (dayBoundaryModeInput) {
 buildDayToggles();
 initTheme();
 updateDayBoundaryHint();
-renderIntakeChart();
-renderTotalsChart();
-renderWeightChart();
-updateInsights();
 bindAsyncForms();
 setNowAsLocalTime();
 document.querySelectorAll('.js-quick-add').forEach((btn) => btn.addEventListener('click', () => {
@@ -1557,6 +1563,10 @@ if (weightZoomOutBtn) {
 if (weightZoomResetBtn) {
   weightZoomResetBtn.addEventListener('click', resetWeightChartZoom);
 }
+runSafely(renderIntakeChart, 'renderIntakeChart');
+runSafely(renderTotalsChart, 'renderTotalsChart');
+runSafely(() => renderWeightChart(), 'renderWeightChart');
+runSafely(updateInsights, 'updateInsights');
 </script>
 </body>
 </html>
