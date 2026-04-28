@@ -396,31 +396,25 @@ function chartThemeColors() {
 function applyChartTheme(chart) {
   if (!chart?.options) return;
   const theme = chartThemeColors();
-  const scales = chart.options.scales;
-  if (scales?.x) {
-    if (scales.x.grid && scales.x.grid.display !== false) scales.x.grid.color = theme.grid;
-    if (scales.x.ticks) scales.x.ticks.color = theme.text;
-    if (scales.x.title) scales.x.title.color = theme.axis;
+  if (chart.canvas?.id === 'totalsChart') {
+    const totalsDataset = chart.data?.datasets?.[0];
+    if (totalsDataset) {
+      totalsDataset.borderColor = theme.totalsBorder;
+      totalsDataset.backgroundColor = theme.totalsFill;
+    }
   }
-  if (scales?.y) {
-    if (scales.y.grid && scales.y.grid.display !== false) scales.y.grid.color = theme.grid;
-    if (scales.y.ticks) scales.y.ticks.color = theme.text;
-    if (scales.y.title) scales.y.title.color = theme.axis;
-  }
-  const plugins = chart.options.plugins;
-  if (plugins?.tooltip) {
-    plugins.tooltip.backgroundColor = theme.tooltipBg;
-    plugins.tooltip.borderColor = theme.tooltipBorder;
-    plugins.tooltip.borderWidth = 1;
-    plugins.tooltip.titleColor = theme.tooltipText;
-    plugins.tooltip.bodyColor = theme.tooltipText;
-  }
-  if (plugins?.legend?.labels) {
-    plugins.legend.labels.color = theme.text;
-  }
-  chart.options.layout = chart.options.layout || {};
-  chart.options.layout.padding = chart.options.layout.padding || {};
   if (chart.canvas?.id === 'weightChart' || chart.canvas?.id === 'chartModalCanvas') {
+    const weightDataset = chart.data?.datasets?.find((dataset) => dataset.label === i18n.weight_dataset);
+    if (weightDataset) {
+      weightDataset.borderColor = theme.weightLine;
+      weightDataset.backgroundColor = theme.weightPoint;
+      weightDataset.pointBackgroundColor = theme.weightPoint;
+      weightDataset.pointBorderColor = theme.weightLine;
+    }
+  }
+  if (chart.canvas?.id === 'weightChart' || chart.canvas?.id === 'chartModalCanvas') {
+    chart.options.layout = chart.options.layout || {};
+    chart.options.layout.padding = chart.options.layout.padding || {};
     chart.options.layout.padding.right = Math.max(Number(chart.options.layout.padding.right) || 0, 30);
   }
 }
