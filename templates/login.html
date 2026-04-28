@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body class="login-page">
+  <script>
+    (() => {
+      const saved = localStorage.getItem('babyDashboardTheme');
+      const theme = saved === 'dark' || saved === 'light'
+        ? saved
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.body.setAttribute('data-theme', theme);
+    })();
+  </script>
   <div class="box">
     <form method="get" action="{{ url_for('login') }}" class="mb-8">
       <label for="lang">{{ i18n.language }}</label>

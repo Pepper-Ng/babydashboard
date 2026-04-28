@@ -157,7 +157,7 @@
       </form>
 
       <h2 class="mt-18">{{ i18n.add_weight_title }}</h2>
-      <form method="post" action="{{ url_for('add_weight', lang=lang) }}">
+      <form method="post" action="{{ url_for('add_weight', lang=lang) }}" class="js-async-form" id="addWeightForm">
         <div class="row2">
           <div>
             <label for="weight_date">{{ i18n.date_weight }}</label>
@@ -310,6 +310,7 @@ const dayStartMinutes = Number(dayStartTime.split(':')[0]) * 60 + Number(dayStar
 const dayDurationMinutes = 24 * 60;
 const loggedIn = {{ 'true' if logged_in else 'false' }};
 const colors = ['#2563eb','#16a34a','#f59e0b','#ef4444','#8b5cf6','#0891b2','#db2777','#0ea5e9','#84cc16'];
+let activeModalChartId = null;
 
 const referenceBirthDateIso = '2025-10-12';
 const dutchBoyGrowthAnchorMonths = [0.5, 2, 4, 6, 9, 12, 15];
@@ -368,6 +369,58 @@ function getColorForDate(isoDate) {
     dateColorMap[isoDate] = colors[index];
   }
   return dateColorMap[isoDate];
+}
+
+function chartThemeColors() {
+  const styles = window.getComputedStyle(document.body);
+  const read = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  return {
+    text: read('--chart-text', read('--text', '#1f2937')),
+    axis: read('--chart-axis', read('--text', '#1f2937')),
+    grid: read('--chart-grid', 'rgba(148,163,184,.22)'),
+    tooltipBg: read('--chart-tooltip-bg', read('--card', '#fff')),
+    tooltipText: read('--chart-tooltip-text', read('--text', '#1f2937')),
+    tooltipBorder: read('--chart-tooltip-border', read('--line', '#e5e7eb')),
+    totalsBorder: read('--chart-totals-border', read('--accent', '#2563eb')),
+    totalsFill: read('--chart-totals-fill', 'rgba(37,99,235,.55)'),
+    growthLine: read('--chart-growth-line', '#16a34a'),
+    sdsLine: read('--chart-sds-line', 'rgba(22,163,74,0.55)'),
+    sdsFill25: read('--chart-sds-fill-25', 'rgba(22,163,74,0.10)'),
+    sdsFill2: read('--chart-sds-fill-2', 'rgba(22,163,74,0.14)'),
+    sdsFill1: read('--chart-sds-fill-1', 'rgba(22,163,74,0.20)'),
+    weightLine: read('--chart-weight-line', '#7c3aed'),
+    weightPoint: read('--chart-weight-point', read('--chart-weight-line', '#7c3aed'))
+  };
+}
+
+function applyChartTheme(chart) {
+  if (!chart?.options) return;
+  const theme = chartThemeColors();
+  const scales = chart.options.scales || {};
+  Object.values(scales).forEach((scale) => {
+    if (!scale) return;
+    scale.grid = scale.grid || {};
+    scale.ticks = scale.ticks || {};
+    scale.title = scale.title || {};
+    if (scale.grid.display !== false) scale.grid.color = theme.grid;
+    scale.ticks.color = theme.text;
+    scale.title.color = theme.axis;
+  });
+  chart.options.plugins = chart.options.plugins || {};
+  chart.options.plugins.tooltip = chart.options.plugins.tooltip || {};
+  chart.options.plugins.tooltip.backgroundColor = theme.tooltipBg;
+  chart.options.plugins.tooltip.borderColor = theme.tooltipBorder;
+  chart.options.plugins.tooltip.borderWidth = 1;
+  chart.options.plugins.tooltip.titleColor = theme.tooltipText;
+  chart.options.plugins.tooltip.bodyColor = theme.tooltipText;
+  chart.options.plugins.legend = chart.options.plugins.legend || {};
+  chart.options.plugins.legend.labels = chart.options.plugins.legend.labels || {};
+  chart.options.plugins.legend.labels.color = theme.text;
+  chart.options.layout = chart.options.layout || {};
+  chart.options.layout.padding = chart.options.layout.padding || {};
+  if (chart.canvas?.id === 'weightChart' || chart.canvas?.id === 'chartModalCanvas') {
+    chart.options.layout.padding.right = Math.max(Number(chart.options.layout.padding.right) || 0, 30);
+  }
 }
 
 function sortEntriesAscending(entries) {
@@ -476,12 +529,29 @@ function formatEditStamp(value) {
   return String(value).replace('T', ' ').slice(0, 16);
 }
 
-function showToast(message) {
+function showToast(message, tone = 'success') {
   if (!toast || !message) return;
   toast.textContent = message;
+  toast.classList.toggle('error', tone === 'error');
   toast.classList.add('show');
   window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2400);
+  showToast.timer = window.setTimeout(() => {
+    toast.classList.remove('show');
+    toast.classList.remove('error');
+  }, 2400);
+}
+
+async function readAsyncErrorMessage(response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const payload = await response.json();
+      if (payload && payload.message) return payload.message;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  return i18n.save_failed || 'Saving failed. Please try again.';
 }
 
 function buildDayToggles() {
@@ -764,29 +834,56 @@ function growthCurveSeries() {
 
 function weightDatasets() {
   const growth = growthCurveSeries();
-  const sdsLineColor = 'rgba(22,163,74,0.55)';
-  const meanLineColor = 'rgba(22,163,74,1)';
+  const theme = chartThemeColors();
+  const sdsLineColor = theme.sdsLine;
+  const meanLineColor = theme.growthLine;
   return [
     { label: '+2.5 SDS', data: growth.up2_5, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.25, tension: 0.2, sdsLabel: '+2.5', order: 1 },
-    { label: '±2.5 SDS area', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.10)', pointRadius: 0, borderWidth: 0, fill: 0, legendOnly: true, order: 0 },
+    { label: '±2.5 SDS area', data: growth.up2, borderColor: 'rgba(22,163,74,0)', backgroundColor: theme.sdsFill25, pointRadius: 0, borderWidth: 0, fill: 0, legendOnly: true, order: 0 },
     { label: '+2 SDS', data: growth.up2, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.2, tension: 0.2, sdsLabel: '+2', order: 1 },
-    { label: '±2 SDS area', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.14)', pointRadius: 0, borderWidth: 0, fill: 2, legendOnly: true, order: 0 },
+    { label: '±2 SDS area', data: growth.up1, borderColor: 'rgba(22,163,74,0)', backgroundColor: theme.sdsFill2, pointRadius: 0, borderWidth: 0, fill: 2, legendOnly: true, order: 0 },
     { label: '+1 SDS', data: growth.up1, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0)', pointRadius: 0, borderWidth: 1.15, tension: 0.2, sdsLabel: '+1', order: 1 },
-    { label: '±1 SDS area', data: growth.mean, borderColor: 'rgba(22,163,74,0)', backgroundColor: 'rgba(22,163,74,0.20)', pointRadius: 0, borderWidth: 0, fill: 4, legendOnly: true, order: 0 },
-    { label: i18n.weight_growth_curve || 'Groeicurve', data: growth.mean, borderColor: meanLineColor, backgroundColor: 'rgba(22,163,74,0)', tension: 0.2, borderWidth: 2.2, pointRadius: 0, sdsLabel: '0', order: 2 },
-    { label: '-1 SDS', data: growth.low1, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.20)', pointRadius: 0, borderWidth: 1.15, tension: 0.2, fill: 6, sdsLabel: '-1', order: 1 },
-    { label: '-2 SDS', data: growth.low2, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.14)', pointRadius: 0, borderWidth: 1.2, tension: 0.2, fill: 7, sdsLabel: '-2', order: 1 },
-    { label: '-2.5 SDS', data: growth.low2_5, borderColor: sdsLineColor, backgroundColor: 'rgba(22,163,74,0.10)', pointRadius: 0, borderWidth: 1.25, tension: 0.2, fill: 8, sdsLabel: '-2.5', order: 1 },
+    { label: '±1 SDS area', data: growth.mean, borderColor: 'rgba(22,163,74,0)', backgroundColor: theme.sdsFill1, pointRadius: 0, borderWidth: 0, fill: 4, legendOnly: true, order: 0 },
+    { label: i18n.weight_growth_curve || 'Weight growth curve', data: growth.mean, borderColor: meanLineColor, backgroundColor: 'rgba(22,163,74,0)', tension: 0.2, borderWidth: 2.2, pointRadius: 0, sdsLabel: '0', order: 2 },
+    { label: '-1 SDS', data: growth.low1, borderColor: sdsLineColor, backgroundColor: theme.sdsFill1, pointRadius: 0, borderWidth: 1.15, tension: 0.2, fill: 6, sdsLabel: '-1', order: 1 },
+    { label: '-2 SDS', data: growth.low2, borderColor: sdsLineColor, backgroundColor: theme.sdsFill2, pointRadius: 0, borderWidth: 1.2, tension: 0.2, fill: 7, sdsLabel: '-2', order: 1 },
+    { label: '-2.5 SDS', data: growth.low2_5, borderColor: sdsLineColor, backgroundColor: theme.sdsFill25, pointRadius: 0, borderWidth: 1.25, tension: 0.2, fill: 8, sdsLabel: '-2.5', order: 1 },
     {
       label: i18n.weight_dataset,
       data: weightPoints.map(p => ({ x: p.day_index, y: p.weight, full_label: p.full_label })),
-      borderColor: '#7c3aed',
-      backgroundColor: '#7c3aed',
+      borderColor: theme.weightLine,
+      backgroundColor: theme.weightPoint,
+      pointBackgroundColor: theme.weightPoint,
+      pointBorderColor: theme.weightLine,
+      pointBorderWidth: 2,
       tension: 0.25,
       borderWidth: 2,
-      pointRadius: 4
+      pointRadius: 5,
+      pointHoverRadius: 6
     }
   ];
+}
+
+function getVisibleLineLabelAnchor(meta, chartArea) {
+  const points = (meta?.data || []).filter((point) => point && !point.skip && Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (!points.length) return null;
+  const visiblePoints = points.filter((point) => point.x >= chartArea.left && point.x <= chartArea.right);
+  if (!visiblePoints.length) return null;
+  const lastVisiblePoint = visiblePoints[visiblePoints.length - 1];
+  const lastVisibleIndex = points.indexOf(lastVisiblePoint);
+  const nextPoint = points[lastVisibleIndex + 1];
+  if (nextPoint && nextPoint.x > chartArea.right && lastVisiblePoint.x < chartArea.right) {
+    const span = nextPoint.x - lastVisiblePoint.x;
+    const ratio = span ? (chartArea.right - lastVisiblePoint.x) / span : 0;
+    return {
+      x: chartArea.right,
+      y: lastVisiblePoint.y + ((nextPoint.y - lastVisiblePoint.y) * Math.max(0, Math.min(1, ratio)))
+    };
+  }
+  return {
+    x: lastVisiblePoint.x,
+    y: lastVisiblePoint.y
+  };
 }
 
 const weightSdsLabelPlugin = {
@@ -794,7 +891,6 @@ const weightSdsLabelPlugin = {
   afterDatasetsDraw(chart) {
     if (!chart?.chartArea || !chart?.ctx) return;
     const { ctx, chartArea } = chart;
-    const xPos = chartArea.right + 6;
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -803,8 +899,10 @@ const weightSdsLabelPlugin = {
       if (!dataset?.sdsLabel) return;
       const meta = chart.getDatasetMeta(datasetIndex);
       if (!meta?.data?.length || meta.hidden) return;
-      const lastPoint = meta.data[meta.data.length - 1];
-      const yPos = lastPoint?.y;
+      const labelAnchor = getVisibleLineLabelAnchor(meta, chartArea);
+      if (!labelAnchor) return;
+      const xPos = Math.min(chart.width - 4, labelAnchor.x + 6);
+      const yPos = labelAnchor.y;
       if (!Number.isFinite(yPos) || yPos < chartArea.top || yPos > chartArea.bottom) return;
       ctx.fillStyle = dataset.borderColor || '#166534';
       ctx.fillText(dataset.sdsLabel, xPos, yPos);
@@ -897,9 +995,12 @@ function modalChartConfig(chartId) {
           }
         }
       }
-    }
+    },
+    plugins: [weightSdsLabelPlugin]
   };
 }
+
+const initialChartTheme = chartThemeColors();
 
 const totalsChart = new Chart(document.getElementById('totalsChart'), {
   type: 'bar',
@@ -908,8 +1009,8 @@ const totalsChart = new Chart(document.getElementById('totalsChart'), {
     datasets: [{
       label: i18n.totals_dataset,
       data: dailyTotals.map(d => d.total),
-      borderColor: '#2563eb',
-      backgroundColor: 'rgba(37,99,235,.55)',
+      borderColor: initialChartTheme.totalsBorder,
+      backgroundColor: initialChartTheme.totalsFill,
       borderWidth: 2,
       tension: 0.25,
       pointRadius: 4
@@ -1036,23 +1137,61 @@ function renderIntakeChart() {
   intakeChart.options.scales.x.min = min;
   intakeChart.options.scales.x.max = max;
   intakeChart.options.scales.y.title.text = intakeView === 'cumulative' ? i18n.single_y_cumulative : i18n.single_y_individual;
+  applyChartTheme(intakeChart);
   intakeChart.update();
 }
 
 function renderTotalsChart() {
+  const theme = chartThemeColors();
   totalsChart.config.type = totalsType;
+  totalsChart.data.datasets[0].borderColor = theme.totalsBorder;
+  totalsChart.data.datasets[0].backgroundColor = theme.totalsFill;
+  applyChartTheme(totalsChart);
   totalsChart.update();
 }
 
-function renderWeightChart() {
+function renderWeightChart({ preserveRange = false } = {}) {
+  const theme = chartThemeColors();
   const datasets = weightDatasets();
   const allXValues = datasets.flatMap((dataset) => dataset.data.map((point) => Number(point.x))).filter((value) => Number.isFinite(value));
-  const minX = allXValues.length ? Math.min(...allXValues) - 0.5 : 0;
-  const maxX = allXValues.length ? Math.max(...allXValues) + 0.5 : 1;
   weightChart.data.datasets = datasets;
-  weightChart.options.scales.x.min = minX;
-  weightChart.options.scales.x.max = maxX;
+  const currentMin = Number(weightChart.options?.scales?.x?.min);
+  const currentMax = Number(weightChart.options?.scales?.x?.max);
+  const keepCurrentRange = preserveRange && Number.isFinite(currentMin) && Number.isFinite(currentMax);
+  if (!keepCurrentRange) {
+    const minX = allXValues.length ? Math.min(...allXValues) - 0.5 : 0;
+    const maxX = allXValues.length ? Math.max(...allXValues) + 0.5 : 1;
+    weightChart.options.scales.x.min = minX;
+    weightChart.options.scales.x.max = maxX;
+  }
+  applyChartTheme(weightChart);
   weightChart.update();
+}
+
+function createModalChart(chartId) {
+  const modalCtx = document.getElementById('chartModalCanvas');
+  if (!modalCtx) return;
+  if (window.modalChart) window.modalChart.destroy();
+  window.modalChart = new Chart(modalCtx, modalChartConfig(chartId));
+  applyChartTheme(window.modalChart);
+  window.requestAnimationFrame(() => {
+    if (window.modalChart) {
+      window.modalChart.resize();
+      window.modalChart.update('none');
+    }
+  });
+}
+
+function syncOpenModalChartTheme() {
+  if (!chartModal?.classList.contains('open') || !activeModalChartId) return;
+  createModalChart(activeModalChartId);
+}
+
+function refreshThemeAwareCharts(preserveWeightRange = true) {
+  renderTotalsChart();
+  renderIntakeChart();
+  renderWeightChart({ preserveRange: preserveWeightRange });
+  syncOpenModalChartTheme();
 }
 
 function zoomWeightChart(direction) {
@@ -1205,14 +1344,45 @@ async function handleAsyncSubmit(event) {
       body: new FormData(form),
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-    if (!response.ok) return;
     const contentType = response.headers.get('content-type') || '';
+    if (response.status === 401) {
+      let authPayload = null;
+      if (contentType.includes('application/json')) {
+        try {
+          authPayload = await response.json();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      const loginUrl = authPayload?.login_url || (response.redirected ? response.url : null);
+      if (loginUrl) {
+        window.location.assign(loginUrl);
+        return;
+      }
+      showToast(authPayload?.message || i18n.session_expired || i18n.save_failed || 'Saving failed. Please try again.', 'error');
+      return;
+    }
+    if (response.redirected && response.url) {
+      window.location.assign(response.url);
+      return;
+    }
+    if (!response.ok) {
+      showToast(await readAsyncErrorMessage(response), 'error');
+      return;
+    }
     if (!contentType.includes('application/json')) {
       window.location.reload();
       return;
     }
     const payload = await response.json();
-    if (!payload.success || !payload.data) return;
+    if (!payload.success) {
+      showToast(payload.message || i18n.save_failed || 'Saving failed. Please try again.', 'error');
+      return;
+    }
+    if (!payload.data) {
+      showToast(i18n.save_failed || 'Saving failed. Please try again.', 'error');
+      return;
+    }
     applyDashboardData.focusIntakeDay = focusIntakeDay;
     applyDashboardData(payload.data);
     if (payload.message) showToast(payload.message);
@@ -1220,9 +1390,13 @@ async function handleAsyncSubmit(event) {
       form.reset();
       setNowAsLocalTime();
       focusIntakeChartSection();
+    } else if (form.id === 'addWeightForm') {
+      form.reset();
+      setTodayAsLocalDate();
     }
   } catch (error) {
     console.error(error);
+    showToast(i18n.save_failed || 'Saving failed. Please try again.', 'error');
   } finally {
     submittingForms.delete(form);
     if (submitButton) {
@@ -1244,23 +1418,25 @@ function setNowAsLocalTime() {
   if (timeInput) timeInput.value = `${hh}:${mm}`;
 }
 
+function setTodayAsLocalDate() {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateInput = document.getElementById('weight_date');
+  if (dateInput) dateInput.value = `${year}-${month}-${day}`;
+}
+
 function openChartModal(chartId) {
   if (!chartModal) return;
   const map = { totalsChart, intakeChart, weightChart };
   const chart = map[chartId];
   if (!chart) return;
+  activeModalChartId = chartId;
   chartModal.classList.add('open');
   chartModal.setAttribute('aria-hidden', 'false');
   chartModalTitle.textContent = chart.options?.plugins?.title?.text || chart.canvas.closest('.card')?.querySelector('h2')?.textContent || '';
-  const modalCtx = document.getElementById('chartModalCanvas');
-  if (window.modalChart) window.modalChart.destroy();
-  window.modalChart = new Chart(modalCtx, modalChartConfig(chartId));
-  window.requestAnimationFrame(() => {
-    if (window.modalChart) {
-      window.modalChart.resize();
-      window.modalChart.update('none');
-    }
-  });
+  createModalChart(chartId);
 }
 
 function closeChartModal() {
@@ -1271,6 +1447,7 @@ function closeChartModal() {
     window.modalChart.destroy();
     window.modalChart = null;
   }
+  activeModalChartId = null;
 }
 
 function bindAsyncForms() {
@@ -1368,6 +1545,7 @@ if (themeToggle) {
   themeToggle.addEventListener('click', () => {
     const currentTheme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    refreshThemeAwareCharts(true);
   });
 }
 if (weightZoomInBtn) {
