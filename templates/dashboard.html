@@ -324,13 +324,12 @@ function defaultSelectedDates(days) {
 function parseMinutes(value) {
   const [hh, mm] = String(value || '00:00').split(':');
   return Number(hh) * 60 + Number(mm);
+    },
+    plugins: [weightSdsLabelPlugin]
+  };
 }
 
-function shiftedMinutes(minutes) {
-  if (minutes >= dayStartMinutes) return minutes - dayStartMinutes;
-  return minutes + (24 * 60 - dayStartMinutes);
-}
-
+const totalsChart
 function isoToLabel(isoDate) {
   const [year, month, day] = isoDate.split('-');
   return `${day}-${month}`;
@@ -476,12 +475,16 @@ function formatEditStamp(value) {
   return String(value).replace('T', ' ').slice(0, 16);
 }
 
-function showToast(message) {
+function showToast(message, tone = 'success') {
   if (!toast || !message) return;
   toast.textContent = message;
+  toast.classList.toggle('error', tone === 'error');
   toast.classList.add('show');
   window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2400);
+  showToast.timer = window.setTimeout(() => {
+    toast.classList.remove('show');
+    toast.classList.remove('error');
+  }, 2400);
 }
 
 function buildDayToggles() {
@@ -789,12 +792,33 @@ function weightDatasets() {
   ];
 }
 
+function getVisibleLineLabelAnchor(meta, chartArea) {
+  const points = (meta?.data || []).filter((point) => point && !point.skip && Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (!points.length) return null;
+  const visiblePoints = points.filter((point) => point.x >= chartArea.left && point.x <= chartArea.right);
+  if (!visiblePoints.length) return null;
+  const lastVisiblePoint = visiblePoints[visiblePoints.length - 1];
+  const lastVisibleIndex = points.indexOf(lastVisiblePoint);
+  const nextPoint = points[lastVisibleIndex + 1];
+  if (nextPoint && nextPoint.x > chartArea.right && lastVisiblePoint.x < chartArea.right) {
+    const span = nextPoint.x - lastVisiblePoint.x;
+    const ratio = span ? (chartArea.right - lastVisiblePoint.x) / span : 0;
+    return {
+      x: chartArea.right,
+      y: lastVisiblePoint.y + ((nextPoint.y - lastVisiblePoint.y) * Math.max(0, Math.min(1, ratio)))
+    };
+  }
+  return {
+    x: lastVisiblePoint.x,
+    y: lastVisiblePoint.y
+  };
+}
+
 const weightSdsLabelPlugin = {
   id: 'weightSdsLabelPlugin',
   afterDatasetsDraw(chart) {
     if (!chart?.chartArea || !chart?.ctx) return;
     const { ctx, chartArea } = chart;
-    const xPos = chartArea.right + 6;
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -803,8 +827,10 @@ const weightSdsLabelPlugin = {
       if (!dataset?.sdsLabel) return;
       const meta = chart.getDatasetMeta(datasetIndex);
       if (!meta?.data?.length || meta.hidden) return;
-      const lastPoint = meta.data[meta.data.length - 1];
-      const yPos = lastPoint?.y;
+      const labelAnchor = getVisibleLineLabelAnchor(meta, chartArea);
+      if (!labelAnchor) return;
+      const xPos = Math.min(chart.width - 4, labelAnchor.x + 6);
+      const yPos = labelAnchor.y;
       if (!Number.isFinite(yPos) || yPos < chartArea.top || yPos > chartArea.bottom) return;
       ctx.fillStyle = dataset.borderColor || '#166534';
       ctx.fillText(dataset.sdsLabel, xPos, yPos);
@@ -897,7 +923,8 @@ function modalChartConfig(chartId) {
           }
         }
       }
-    }
+    },
+    plugins: [weightSdsLabelPlugin]
   };
 }
 
