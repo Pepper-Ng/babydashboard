@@ -12,10 +12,13 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 TRANSLATIONS_FILE = os.getenv("TRANSLATIONS_FILE", "translations.json")
 SUPPORTED_LANGUAGES = {"nl", "en"}
 DAY_START_MINUTES = 3 * 60
+LOGIN_SESSION_LIFETIME = timedelta(days=max(2, int(os.getenv("LOGIN_SESSION_LIFETIME_DAYS", "2"))))
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["DATABASE"] = DEFAULT_DB_PATH
+app.config["PERMANENT_SESSION_LIFETIME"] = LOGIN_SESSION_LIFETIME
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 
 
 with open(TRANSLATIONS_FILE, "r", encoding="utf-8") as handle:
@@ -146,6 +149,12 @@ def login_required(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+@app.before_request
+def refresh_logged_in_session():
+    if session.get("logged_in"):
+        session.permanent = True
 
 
 def parse_minutes(value):
@@ -357,6 +366,7 @@ def login():
     next_url = request.args.get("next") or url_for("dashboard", lang=lang)
     if request.method == "POST":
         if request.form.get("password", "") == ADMIN_PASSWORD:
+            session.permanent = True
             session["logged_in"] = True
             flash(t("logged_in_success", lang), "success")
             return redirect(next_url)
