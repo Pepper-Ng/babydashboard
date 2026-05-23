@@ -41,7 +41,7 @@ http://<your-host>:8080
 Set environment variables in `docker-compose.yml` or via Portainer stack config:
 
 - `SECRET_KEY`: long random secret
-- `ADMIN_PASSWORD`: your dashboard password
+- `ADMIN_PASSWORD`: your dashboard password. For Git-backed Portainer deployments, set this in the stack's **Environment variables** section instead of committing it into `docker-compose.yml`.
 - `DB_PATH` (optional): default `/data/babylog.db`
 - `TRANSLATIONS_FILE` (optional): default `translations.json`
 
@@ -54,7 +54,7 @@ SQLite database file is persisted at `/data/babylog.db`.
 1. Push this repository to GitHub.
 2. In Portainer: **Stacks → Add stack → Repository**.
 3. Select repository and branch.
-4. Configure env vars and volume mapping.
+4. Configure env vars and volume mapping. Set `ADMIN_PASSWORD` in the stack's **Environment variables** section so the password stays out of Git.
 5. Deploy stack.
 
 ## API

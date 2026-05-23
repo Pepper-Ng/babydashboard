@@ -6,7 +6,7 @@ services:
       - "8080:8000"
     environment:
       - SECRET_KEY=change-this-to-a-long-random-string
-      - ADMIN_PASSWORD=change-this-password
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - DB_PATH=/data/babylog.db
     volumes:
       - baby_melk_data:/data
