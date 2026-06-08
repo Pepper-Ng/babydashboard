@@ -45,12 +45,13 @@
   <div class="stats">
     <div class="stat"><div class="label">{{ i18n.days_tracked }}</div><div class="value" id="statDays">{{ days|length }}</div></div>
     <div class="stat"><div class="label">{{ i18n.feedings_logged }}</div><div class="value" id="statFeedings">{{ entries|length }}</div></div>
-    <div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value" id="statLatest">{{ days[-1].label if days else '—' }}</div></div>
+    <!--<div class="stat"><div class="label">{{ i18n.latest_day }}</div><div class="value" id="statLatest">{{ days[-1].label if days else '—' }}</div></div>-->
+    <div class="stat"><div class="label">{{ i18n.avg_day_intake }}</div><div class="value" id="insightAvgDay">—</div></div>
   </div>
   <div class="insights">
-    <div class="stat"><div class="label">{{ i18n.avg_day_intake }}</div><div class="value" id="insightAvgDay">—</div></div>
     <div class="stat"><div class="label">{{ i18n.min_max_day }}</div><div class="value" id="insightMinMax">—</div></div>
     <div class="stat"><div class="label">{{ i18n.avg_feed_size }}</div><div class="value" id="insightAvgFeed">—</div></div>
+    <div class="stat"><div class="label">{{ i18n.current_day_intake }}</div><div class="value" id="insightCurrentDay">—</div></div>
     <div class="stat"><div class="label">{{ i18n.time_since_last_feed }}</div><div class="value" id="insightSinceFeed">—</div></div>
   </div>
 
@@ -1083,6 +1084,13 @@ function updateDayBoundaryHint() {
   dayBoundaryHint.textContent = i18n[key].replace('{time}', dayStartTime).replace('{end_time}', endTime);
 }
 
+function currentIntakeDayIso() {
+  const now = new Date();
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return useShiftedDayBoundary && currentMinutes < dayStartMinutes ? shiftIsoDateByDays(localDate, -1) : localDate;
+}
+
 function updateInsights() {
   const totals = dailyTotals.map((d) => d.total);
   const avgDay = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
@@ -1092,8 +1100,11 @@ function updateInsights() {
   const lastFeed = recentEntries.length ? recentEntries[0] : null;
   const sinceMin = lastFeed ? Math.max(0, Math.round((Date.now() - new Date(`${lastFeed.date}T${lastFeed.time}:00`).getTime()) / 60000)) : null;
   const hours = sinceMin === null ? '—' : `${Math.floor(sinceMin / 60)}h ${sinceMin % 60}m`;
+  const currentDay = currentIntakeDayIso();
+  const currentDayTotal = dailyTotals.find((d) => d.date === currentDay)?.total ?? 0;
   document.getElementById('insightAvgDay').textContent = avgDay ? `${avgDay} ml` : '—';
   document.getElementById('insightAvgFeed').textContent = avgFeed ? `${avgFeed} ml` : '—';
+  document.getElementById('insightCurrentDay').textContent = `${currentDayTotal} ml`;
   document.getElementById('insightMinMax').textContent = (minDay && maxDay) ? `${minDay.total}/${maxDay.total} ml` : '—';
   document.getElementById('insightSinceFeed').textContent = hours;
   const ws = document.getElementById('weightSummary');
@@ -1333,6 +1344,7 @@ if (dayBoundaryModeInput) {
     buildDayToggles();
     renderTotalsChart();
     renderIntakeChart();
+    updateInsights();
   });
 }
 
@@ -1350,6 +1362,7 @@ document.querySelectorAll('.js-quick-add').forEach((btn) => btn.addEventListener
   if (amount) amount.value = btn.dataset.amount;
 }));
 document.querySelectorAll('[data-fullscreen-chart]').forEach((btn) => btn.addEventListener('click', () => openChartModal(btn.dataset.fullscreenChart)));
+
 if (chartModalClose) chartModalClose.addEventListener('click', closeChartModal);
 if (chartModal) chartModal.addEventListener('click', (event) => {
   if (event.target === chartModal) closeChartModal();
